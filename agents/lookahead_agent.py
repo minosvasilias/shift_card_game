@@ -261,6 +261,42 @@ class LookaheadAgent(Agent):
                 )
                 player.score += int(estimated_score)
 
+                # Handle Kickback's special push mechanic
+                if center.card.name == "Kickback":
+                    # Kickback pushes one card out after scoring
+                    # Simulate the greedy choice of which direction to push
+                    from game.state import EffectChoice
+
+                    # Determine valid push directions
+                    options = []
+                    if len(player.row) > 1:  # Has cards to push
+                        options = [Side.LEFT, Side.RIGHT]
+
+                    if options:
+                        # Use greedy's logic to choose direction
+                        choice = EffectChoice(
+                            choice_type="kickback_direction",
+                            options=options,
+                            description="Choose which direction to push Kickback"
+                        )
+                        direction = self.greedy.choose_effect_option(new_state, player_idx, choice)
+
+                        # Determine which card gets pushed out
+                        if direction == Side.LEFT:
+                            kickback_pushed = player.row[0]  # Leftmost card pushed
+                        else:
+                            kickback_pushed = player.row[-1]  # Rightmost card pushed
+
+                        # Evaluate exit effect if applicable
+                        if kickback_pushed.face_up and kickback_pushed.card.card_type == CardType.EXIT:
+                            exit_score = self.greedy._estimate_exit_score(
+                                kickback_pushed, new_state, player_idx
+                            )
+                            player.score += int(exit_score)
+
+                        # Remove the pushed card from row
+                        player.row.remove(kickback_pushed)
+
         # Use greedy's draw logic to choose deck vs market
         draw_choice = self.greedy.choose_draw(new_state, player_idx)
 

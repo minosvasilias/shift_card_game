@@ -291,7 +291,7 @@ def effect_embargo(state: GameState, card: CardInPlay, player_idx: int, agent: A
     state.active_effects.append(ActiveEffect(
         effect_type="embargo",
         player_idx=player_idx,
-        expires_turn=state.turn_counter + 2  # Expires after opponent's turn
+        expires_turn=state.turn_counter + 1  # Expires at start of your next turn
     ))
     return 1
 
