@@ -14,6 +14,7 @@ from game.engine import GameEngine
 from game.cards import get_all_cards
 from agents.random_agent import RandomAgent
 from agents.greedy_agent import GreedyAgent
+from agents.lookahead_agent import LookaheadAgent
 from analytics.collector import GameDataCollector
 from analytics.metrics import calculate_metrics
 from analytics.reports import (
@@ -25,9 +26,21 @@ from analytics.reports import (
 
 
 def _create_agent(agent_type: str, seed: int | None):
-    """Create an agent of the specified type."""
+    """
+    Create an agent of the specified type.
+
+    Supported formats:
+    - "random" - RandomAgent
+    - "greedy" - GreedyAgent
+    - "lookahead" or "lookahead:N" - LookaheadAgent with depth N (default 2)
+    """
     if agent_type == "greedy":
         return GreedyAgent(seed=seed)
+    elif agent_type.startswith("lookahead"):
+        # Parse depth from "lookahead:N" format
+        parts = agent_type.split(":")
+        depth = int(parts[1]) if len(parts) > 1 else 2
+        return LookaheadAgent(seed=seed, depth=depth)
     return RandomAgent(seed=seed)
 
 
@@ -128,14 +141,14 @@ def cli():
 @click.option(
     "--agent0", "-a0",
     default="random",
-    type=click.Choice(["random", "greedy"]),
-    help="Agent type for player 0",
+    type=str,
+    help="Agent type for player 0 (random, greedy, lookahead, lookahead:N)",
 )
 @click.option(
     "--agent1", "-a1",
     default="random",
-    type=click.Choice(["random", "greedy"]),
-    help="Agent type for player 1",
+    type=str,
+    help="Agent type for player 1 (random, greedy, lookahead, lookahead:N)",
 )
 def simulate(
     games: int,
@@ -303,14 +316,14 @@ def quick_test(games: int, seed: int, turns: int):
 @click.option(
     "--agent0", "-a0",
     default="random",
-    type=click.Choice(["random", "greedy"]),
-    help="Agent type for player 0",
+    type=str,
+    help="Agent type for player 0 (random, greedy, lookahead, lookahead:N)",
 )
 @click.option(
     "--agent1", "-a1",
     default="random",
-    type=click.Choice(["random", "greedy"]),
-    help="Agent type for player 1",
+    type=str,
+    help="Agent type for player 1 (random, greedy, lookahead, lookahead:N)",
 )
 def demo(seed: int | None, turns: int, delay: float, no_delay: bool, agent0: str, agent1: str):
     """Run a demo game with step-by-step visualization."""
