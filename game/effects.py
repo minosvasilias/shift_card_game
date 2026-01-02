@@ -400,6 +400,104 @@ def effect_hot_potato(state: GameState, card: CardInPlay, player_idx: int, agent
     return 2
 
 
+def effect_parasite(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 4. Swap positions with a card in opponent's row."""
+    from .state import EffectChoice
+
+    opponent_idx = 1 - player_idx
+    opponent_row = state.players[opponent_idx].row
+
+    if not opponent_row:
+        return 4
+
+    # Let agent choose which opponent card to swap with
+    choice = EffectChoice(
+        choice_type="parasite_target",
+        options=list(range(len(opponent_row))),
+        description="Choose which opponent card to swap positions with"
+    )
+    target_idx = agent.choose_effect_option(state, player_idx, choice)
+
+    my_row = state.players[player_idx].row
+    my_position = my_row.index(card)
+
+    # Swap the cards
+    opponent_card = opponent_row[target_idx]
+    opponent_row[target_idx] = card
+    my_row[my_position] = opponent_card
+
+    return 4
+
+
+def effect_auctioneer(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 2 per icon type in your hand that opponent doesn't have in their hand."""
+    my_hand = state.players[player_idx].hand
+    opponent_hand = state.players[1 - player_idx].hand
+
+    # Get unique icons in each hand
+    my_icons = set(c.icon for c in my_hand if c.icon is not None)
+    opp_icons = set(c.icon for c in opponent_hand if c.icon is not None)
+
+    # Count icons I have that opponent doesn't
+    unique_icons = my_icons - opp_icons
+    return 2 * len(unique_icons)
+
+
+def effect_chain_reaction(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 2. Then trigger the center effect of the card to your left (if face-up and CENTER)."""
+    from .state import CardType
+
+    row = state.players[player_idx].row
+    position = row.index(card)
+
+    score = 2
+
+    # Check if there's a card to the left
+    if position > 0:
+        left_card = row[position - 1]
+        # Only trigger if it's face-up and a CENTER card
+        if left_card.face_up and left_card.card.card_type == CardType.CENTER:
+            # Trigger the left card's effect
+            additional_score = left_card.card.effect(state, left_card, player_idx, agent)
+            score += additional_score
+            # Store the last score for cards like Copycat
+            left_card.metadata["last_center_score"] = additional_score
+
+    return score
+
+
+def effect_time_bomb(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Store current turn number. Next time this triggers, score the turn difference."""
+    stored_turn = card.metadata.get("time_bomb_turn")
+
+    if stored_turn is None:
+        # First trigger - store the turn
+        card.metadata["time_bomb_turn"] = state.turn_counter
+        return 0
+    else:
+        # Subsequent trigger - score the difference
+        turns_elapsed = state.turn_counter - stored_turn
+        # Update the stored turn for next time
+        card.metadata["time_bomb_turn"] = state.turn_counter
+        return turns_elapsed
+
+
+def effect_compressor(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 5. Push both edge cards out of your row."""
+    row = state.players[player_idx].row
+
+    # Can only compress if we have 3 cards
+    if len(row) == 3:
+        # Get the edge cards (cards at positions 0 and 2)
+        left_edge = row[0]
+        right_edge = row[2]
+
+        # Store them for the engine to handle (so exit effects trigger)
+        card.metadata["compressor_pushed_cards"] = [left_edge, right_edge]
+
+    return 5
+
+
 # =============================================================================
 # EXIT-SCORING EFFECTS
 # =============================================================================
@@ -480,6 +578,78 @@ def effect_sacrificial_lamb(state: GameState, card: CardInPlay, player_idx: int,
     return 3
 
 
+def effect_phoenix(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Go to top of deck instead of market. Score 2."""
+    # Mark that this card should go to deck instead of market
+    card.metadata["phoenix_to_deck"] = True
+    return 2
+
+
+def effect_sabotage(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Opponent must trash an edge card from their row."""
+    from .state import EffectChoice, Side
+
+    opponent_idx = 1 - player_idx
+    opponent_row = state.players[opponent_idx].row
+
+    if opponent_row:
+        # Opponent chooses which edge to trash
+        choice = EffectChoice(
+            choice_type="sabotage_edge",
+            options=[Side.LEFT, Side.RIGHT] if len(opponent_row) > 1 else [Side.LEFT],
+            description="Choose which edge card to trash"
+        )
+        # Mark for engine to handle (opponent's agent needs to decide)
+        card.metadata["pending_sabotage"] = True
+
+    return 0
+
+
+def effect_roadblock(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Next turn, opponent cannot play to the side this exited from."""
+    from .state import ActiveEffect
+
+    # Determine which side this card exited from (stored by engine)
+    exit_side = card.metadata.get("exit_side")
+
+    if exit_side:
+        state.active_effects.append(ActiveEffect(
+            effect_type="roadblock",
+            player_idx=1 - player_idx,  # Affects opponent
+            data={"blocked_side": exit_side},
+            expires_turn=state.turn_counter + 2  # Lasts until end of opponent's next turn
+        ))
+
+    return 0
+
+
+def effect_recruiter(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Search deck for any card, add to hand, shuffle deck."""
+    from .state import EffectChoice
+    import random
+
+    if state.deck:
+        # Show all cards in deck
+        choice = EffectChoice(
+            choice_type="recruiter_search",
+            options=list(range(len(state.deck))),
+            description="Choose which card to take from deck"
+        )
+        deck_idx = agent.choose_effect_option(state, player_idx, choice)
+
+        # Take the chosen card
+        chosen_card = state.deck.pop(deck_idx)
+        state.players[player_idx].hand.append(chosen_card)
+
+        # Shuffle the deck
+        random.shuffle(state.deck)
+
+        # Enforce hand limit if needed
+        enforce_hand_limit(state, player_idx, agent)
+
+    return 0
+
+
 # =============================================================================
 # TRAP TRIGGER CHECKS
 # =============================================================================
@@ -553,3 +723,59 @@ def effect_snare(state: GameState, card: CardInPlay, player_idx: int, agent: Age
 def effect_mirror_trap(state: GameState, card: CardInPlay, player_idx: int, agent: Agent, event: Event) -> int:
     """You score the same amount."""
     return event.points
+
+
+def trigger_ambush(event: Event, state: GameState, card: CardInPlay, player_idx: int) -> bool:
+    """Trigger when opponent plays a card to the same side this trap was played."""
+    from .state import EventType
+
+    if event.event_type != EventType.CARD_PLAYED or event.player_idx == player_idx:
+        return False
+
+    # Check if opponent played to the same side as this trap
+    trap_side = card.metadata.get("trap_side")
+    if trap_side and event.data.get("side") == trap_side:
+        return True
+    return False
+
+
+def effect_ambush(state: GameState, card: CardInPlay, player_idx: int, agent: Agent, event: Event) -> int:
+    """Steal the played card to your hand."""
+    # Mark the card to be stolen (engine will handle the actual stealing)
+    card.metadata["ambush_steal_card"] = event.card_name
+    return 0
+
+
+def trigger_tax_collector(event: Event, state: GameState, card: CardInPlay, player_idx: int) -> bool:
+    """Trigger when opponent scores 4+ points in a single turn."""
+    from .state import EventType
+    return (
+        event.event_type == EventType.CARD_SCORED and
+        event.player_idx != player_idx and
+        event.points >= 4
+    )
+
+
+def effect_tax_collector(state: GameState, card: CardInPlay, player_idx: int, agent: Agent, event: Event) -> int:
+    """Nullify opponent's score."""
+    # Mark the score to be cancelled (engine will handle this)
+    card.metadata["cancel_score"] = event.points
+    return 0
+
+
+def trigger_mirror_match(event: Event, state: GameState, card: CardInPlay, player_idx: int) -> bool:
+    """Trigger when opponent plays a card with same icon as this trap."""
+    from .state import EventType
+
+    if event.event_type != EventType.CARD_PLAYED or event.player_idx == player_idx:
+        return False
+
+    # Check if the played card has the same icon as this trap
+    return event.icon == card.card.icon
+
+
+def effect_mirror_match(state: GameState, card: CardInPlay, player_idx: int, agent: Agent, event: Event) -> int:
+    """Nullify opponent's card and score 1."""
+    # Mark the card to be nullified (engine will handle this)
+    card.metadata["nullify_card"] = event.card_name
+    return 1
