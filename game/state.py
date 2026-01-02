@@ -213,6 +213,8 @@ class GameState:
     def has_embargo(self, player_idx: int) -> bool:
         """Check if market is locked for a player."""
         return any(
-            e.effect_type == "embargo" and e.player_idx != player_idx
+            e.effect_type == "embargo" and
+            e.player_idx != player_idx and
+            (e.expires_turn is None or e.expires_turn > self.turn_counter)
             for e in self.active_effects
         )
