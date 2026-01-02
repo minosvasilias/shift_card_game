@@ -60,6 +60,9 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
     final_state = engine.run_game()
     winner = engine.get_winner()
 
+    # Calculate unique cards entered (25 total - remaining in deck)
+    unique_cards_entered = 25 - len(final_state.deck)
+
     return {
         "winner": winner,
         "player0_score": final_state.players[0].score,
@@ -68,6 +71,7 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
         "cards_p0": [c.name for c in final_state.players[0].row],
         "cards_p1": [c.name for c in final_state.players[1].row],
         "seed": seed,
+        "unique_cards_entered": unique_cards_entered,
     }
 
 
@@ -177,6 +181,7 @@ def simulate(
                 cards_played_p0=result["cards_p0"],
                 cards_played_p1=result["cards_p1"],
                 seed=result["seed"],
+                unique_cards_entered=result["unique_cards_entered"],
             )
             collector.games.append(record)
             collector._next_game_id += 1

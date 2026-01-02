@@ -32,6 +32,7 @@ class GameRecord:
     cards_played_p1: list[str] = field(default_factory=list)
     card_plays: list[CardPlayRecord] = field(default_factory=list)
     seed: int | None = None
+    unique_cards_entered: int = 0  # Number of unique cards that entered play (25 - deck size)
 
     @property
     def score_margin(self) -> int:
@@ -72,6 +73,10 @@ class GameDataCollector:
         cards_p0 = [c.name for c in final_state.players[0].row]
         cards_p1 = [c.name for c in final_state.players[1].row]
 
+        # Calculate unique cards that entered play (all cards not in deck)
+        # Total deck is 25 cards, so unique entered = 25 - remaining in deck
+        unique_cards_entered = 25 - len(final_state.deck)
+
         record = GameRecord(
             game_id=self._next_game_id,
             winner=winner,
@@ -81,6 +86,7 @@ class GameDataCollector:
             cards_played_p0=cards_p0,
             cards_played_p1=cards_p1,
             seed=seed,
+            unique_cards_entered=unique_cards_entered,
         )
 
         self.games.append(record)
@@ -102,6 +108,7 @@ class GameDataCollector:
                 "score_margin": game.score_margin,
                 "total_turns": game.total_turns,
                 "first_player_won": game.first_player_won,
+                "unique_cards_entered": game.unique_cards_entered,
                 "cards_p0": ",".join(game.cards_played_p0),
                 "cards_p1": ",".join(game.cards_played_p1),
                 "seed": game.seed,

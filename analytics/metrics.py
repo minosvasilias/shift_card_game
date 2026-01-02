@@ -42,6 +42,11 @@ class SimulationMetrics:
     avg_score_margin: float = 0.0
     avg_turns: float = 0.0
     first_player_win_rate: float = 0.0
+    avg_unique_cards: float = 0.0  # Average unique cards that entered play per game
+    min_score: int = 0  # Minimum score achieved across all games
+    max_score: int = 0  # Maximum score achieved across all games
+    min_score_diff: int = 0  # Minimum score difference
+    max_score_diff: int = 0  # Maximum score difference
     card_metrics: dict[str, CardMetrics] = field(default_factory=dict)
 
     def __str__(self) -> str:
@@ -82,6 +87,19 @@ def calculate_metrics(collector: GameDataCollector) -> SimulationMetrics:
     avg_margin = sum(g.score_margin for g in games) / total_games
     avg_turns = sum(g.total_turns for g in games) / total_games
 
+    # Average unique cards entered per game
+    avg_unique_cards = sum(g.unique_cards_entered for g in games) / total_games
+
+    # Score ranges
+    all_scores = [g.player0_score for g in games] + [g.player1_score for g in games]
+    min_score = min(all_scores)
+    max_score = max(all_scores)
+
+    # Score difference ranges
+    all_margins = [g.score_margin for g in games]
+    min_score_diff = min(all_margins)
+    max_score_diff = max(all_margins)
+
     # First player win rate (excluding ties)
     decisive_games = total_games - ties
     first_player_win_rate = player0_wins / decisive_games if decisive_games > 0 else 0.5
@@ -117,6 +135,11 @@ def calculate_metrics(collector: GameDataCollector) -> SimulationMetrics:
         avg_score_margin=avg_margin,
         avg_turns=avg_turns,
         first_player_win_rate=first_player_win_rate,
+        avg_unique_cards=avg_unique_cards,
+        min_score=min_score,
+        max_score=max_score,
+        min_score_diff=min_score_diff,
+        max_score_diff=max_score_diff,
         card_metrics=card_metrics,
     )
 
