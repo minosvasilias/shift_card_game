@@ -101,6 +101,25 @@ class LookaheadAgent(Agent):
         Returns:
             Expected score differential after depth turns
         """
+        # Add strategic heuristics that simulation doesn't capture
+        strategic_bonus = 0.0
+        player = state.players[player_idx]
+        card = player.hand[action.hand_index]
+
+        # Bonus for playing traps face-down (hidden information value)
+        if action.face_down:
+            strategic_bonus += 0.5
+
+        # Penalty for cards that give opponent points
+        if card.name == "Siphon Drone":
+            strategic_bonus -= 1
+
+        # Small bonus for diverse icons (helps Sequence Bot later)
+        if not action.face_down and card.icon:
+            existing_icons = {c.card.icon for c in player.row if c.face_up and c.card.icon}
+            if card.icon not in existing_icons:
+                strategic_bonus += 0.3
+
         # Create a copy of the game state
         sim_state = state.copy()
 
@@ -117,8 +136,11 @@ class LookaheadAgent(Agent):
             # Invalid action
             return float('-inf')
 
-        # Now recursively evaluate remaining depth
-        return self._minimax_simple(sim_state, player_idx, depth - 1)
+        # Get lookahead value from minimax (includes actual scoring from simulation)
+        lookahead_value = self._minimax_simple(sim_state, player_idx, depth - 1)
+
+        # Combine strategic bonuses with lookahead projection
+        return strategic_bonus + lookahead_value
 
     def _minimax_simple(
         self,
