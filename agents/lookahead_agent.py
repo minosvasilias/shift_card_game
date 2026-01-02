@@ -195,8 +195,7 @@ class LookaheadAgent(Agent):
         """
         Simulate an action on a game state (returns new state copy).
 
-        This is a simplified simulation that doesn't execute full card effects,
-        but estimates the basic game flow for lookahead purposes.
+        Uses comprehensive scoring estimation matching greedy agent's evaluation.
         """
         from game.state import CardInPlay
 
@@ -230,8 +229,7 @@ class LookaheadAgent(Agent):
                 )
                 player.score += int(exit_score)
 
-        # Simplified scoring estimation (use greedy's estimation)
-        # This is approximate - full simulation would be very expensive
+        # Evaluate center trigger
         if len(player.row) == 3:
             center = player.row[1]
             if center.face_up and center.card.card_type == CardType.CENTER:
@@ -241,8 +239,21 @@ class LookaheadAgent(Agent):
                 )
                 player.score += int(estimated_score)
 
-        # Draw a card (simplified - just pick from deck/market)
-        if new_state.deck:
+        # Use greedy's draw logic to choose deck vs market
+        draw_choice = self.greedy.choose_draw(new_state, player_idx)
+
+        if draw_choice == DrawChoice.MARKET and new_state.market:
+            # Pick best card from market using greedy's logic
+            best_idx = 0
+            best_value = float('-inf')
+            for idx, market_card in enumerate(new_state.market):
+                value = self.greedy._card_value(market_card, new_state, player_idx)
+                if value > best_value:
+                    best_value = value
+                    best_idx = idx
+            if best_idx < len(new_state.market):
+                player.hand.append(new_state.market.pop(best_idx))
+        elif new_state.deck:
             player.hand.append(new_state.deck.pop())
 
         # Advance to next player
