@@ -1,11 +1,41 @@
 # Robot Assembly Line - Playtesting Simulator
 
-Automated playtesting for the Robot Assembly Line card game.
+Automated playtesting for the Robot Assembly Line card game with both CLI simulations and an interactive web UI.
+
+## Quick Start - Play the Game!
+
+### Web UI (Recommended)
+
+Run the game with a beautiful React frontend:
+
+```bash
+./start_game_ui.sh
+```
+
+Then open http://localhost:3000 in your browser.
+
+### Terminal UI
+
+Run the interactive terminal game:
+
+```bash
+./play_interactive.sh
+```
 
 ## Setup
 
+### Backend
+
 ```bash
 pip install -r requirements.txt
+```
+
+### Frontend (for web UI)
+
+```bash
+cd frontend
+npm install
+cd ..
 ```
 
 ## Commands
@@ -58,22 +88,41 @@ python3 main.py list-cards
 python3 main.py quick-test
 ```
 
+## Interactive Modes
+
+### Web UI
+
+The React frontend features:
+- Beautiful card designs with unique colors
+- Smooth animations for all game events
+- Expandable game log tracking all actions
+- Intuitive click-to-play interface
+- Real-time score updates
+- Visual feedback for card selection
+
+Start it with `./start_game_ui.sh` or manually:
+
+```bash
+# Terminal 1: Backend
+python3 -m uvicorn api.server:app --reload --port 8000
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
+```
+
+### Terminal UI
+
+A text-based interactive mode is also available with `./play_interactive.sh`
+
 ## Agent types
 
 - `random` - Makes valid random moves
 - `greedy` - Picks highest immediate value move
 - `lookahead` or `lookahead:N` - Minimax search agent that looks ahead N turns (default: 2)
 
-## Interactive Mode
+## API Documentation
 
-Play against AI opponents via a REST API:
-
-```bash
-# Start the API server
-uvicorn api.server:app --reload
-
-# Visit http://localhost:8000/docs for interactive API documentation
-```
+The backend provides a REST API for programmatic access. Visit http://localhost:8000/docs for interactive API documentation.
 
 ### API Endpoints
 
@@ -81,7 +130,7 @@ uvicorn api.server:app --reload
 - `GET /game/{game_id}` - Get current game state
 - `POST /game/{game_id}/action` - Submit a play action (which card, which side)
 - `POST /game/{game_id}/draw` - Submit a draw choice (deck or market)
-- `POST /game/{game_id}/effect` - Submit an effect choice (for cards like Swap Bot)
+- `POST /game/{game_id}/effect` - Submit an effect choice (for cards requiring decisions)
 - `DELETE /game/{game_id}` - End a game
 
 ### Example: Create and Play a Game

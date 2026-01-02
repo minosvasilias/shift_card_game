@@ -32,7 +32,7 @@ def serialize_card(card) -> CardInfo:
         name=card.name,
         icon=card.icon.name if card.icon else "None",
         type=card.card_type.name,
-        description=f"{card.card_type.name} card",  # Could add more description
+        description=card.effect_text,
     )
 
 

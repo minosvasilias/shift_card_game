@@ -58,6 +58,7 @@ class Card:
     name: str
     icon: Icon | None
     card_type: CardType
+    effect_text: str = ""
     # Effect function signature: (game_state, card_in_play, player_idx, agent) -> points scored
     # Agent is passed for effects requiring player choices
     effect: Callable[..., int] = field(default=lambda *args: 0)
