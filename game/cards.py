@@ -163,6 +163,41 @@ register_card(Card(
     effect=effects.effect_hot_potato,
 ))
 
+register_card(Card(
+    name="Parasite",
+    icon=Icon.CHIP,
+    card_type=CardType.CENTER,
+    effect=effects.effect_parasite,
+))
+
+register_card(Card(
+    name="Auctioneer",
+    icon=Icon.HEART,
+    card_type=CardType.CENTER,
+    effect=effects.effect_auctioneer,
+))
+
+register_card(Card(
+    name="Chain Reaction",
+    icon=Icon.SPARK,
+    card_type=CardType.CENTER,
+    effect=effects.effect_chain_reaction,
+))
+
+register_card(Card(
+    name="Time Bomb",
+    icon=Icon.CHIP,
+    card_type=CardType.CENTER,
+    effect=effects.effect_time_bomb,
+))
+
+register_card(Card(
+    name="Compressor",
+    icon=Icon.SPARK,
+    card_type=CardType.CENTER,
+    effect=effects.effect_compressor,
+))
+
 
 # =============================================================================
 # EXIT-SCORING CARDS (6 cards)
@@ -210,6 +245,34 @@ register_card(Card(
     effect=effects.effect_sacrificial_lamb,
 ))
 
+register_card(Card(
+    name="Phoenix",
+    icon=Icon.SPARK,
+    card_type=CardType.EXIT,
+    effect=effects.effect_phoenix,
+))
+
+register_card(Card(
+    name="Sabotage",
+    icon=Icon.GEAR,
+    card_type=CardType.EXIT,
+    effect=effects.effect_sabotage,
+))
+
+register_card(Card(
+    name="Roadblock",
+    icon=Icon.HEART,
+    card_type=CardType.EXIT,
+    effect=effects.effect_roadblock,
+))
+
+register_card(Card(
+    name="Recruiter",
+    icon=Icon.CHIP,
+    card_type=CardType.EXIT,
+    effect=effects.effect_recruiter,
+))
+
 
 # =============================================================================
 # TRAP CARDS (4 cards)
@@ -245,6 +308,30 @@ register_card(Card(
     card_type=CardType.TRAP,
     effect=effects.effect_mirror_trap,
     trigger_check=effects.trigger_mirror_trap,
+))
+
+register_card(Card(
+    name="Ambush",
+    icon=Icon.GEAR,
+    card_type=CardType.TRAP,
+    effect=effects.effect_ambush,
+    trigger_check=effects.trigger_ambush,
+))
+
+register_card(Card(
+    name="Tax Collector",
+    icon=Icon.CHIP,
+    card_type=CardType.TRAP,
+    effect=effects.effect_tax_collector,
+    trigger_check=effects.trigger_tax_collector,
+))
+
+register_card(Card(
+    name="Mirror Match",
+    icon=Icon.HEART,
+    card_type=CardType.TRAP,
+    effect=effects.effect_mirror_match,
+    trigger_check=effects.trigger_mirror_match,
 ))
 
 

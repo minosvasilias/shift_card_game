@@ -100,9 +100,34 @@ class GameEngine:
 
                     # Handle special trap effects
                     if card.metadata.get("cancel_score"):
-                        # Tripwire: cancel opponent's score
-                        cancel_amount = card.metadata["cancel_score"]
+                        # Tripwire and Tax Collector: cancel opponent's score
+                        cancel_amount = card.metadata.pop("cancel_score")
                         self.state.players[event.player_idx].score -= cancel_amount
+
+                    if card.metadata.get("ambush_steal_card"):
+                        # Ambush: steal the card to your hand
+                        card_name = card.metadata.pop("ambush_steal_card")
+                        # Find and remove the card from opponent's row
+                        attacker_idx = event.player_idx
+                        for i, opp_card in enumerate(self.state.players[attacker_idx].row):
+                            if opp_card.card.name == card_name:
+                                stolen_card = self.state.players[attacker_idx].row.pop(i)
+                                self.state.players[opponent_idx].hand.append(stolen_card.card)
+                                # Enforce hand limit
+                                from .effects import enforce_hand_limit
+                                enforce_hand_limit(self.state, opponent_idx, agent)
+                                break
+
+                    if card.metadata.get("nullify_card"):
+                        # Mirror Match: nullify the opponent's card
+                        card_name = card.metadata.pop("nullify_card")
+                        # Find and remove the card from opponent's row, send to market
+                        attacker_idx = event.player_idx
+                        for i, opp_card in enumerate(self.state.players[attacker_idx].row):
+                            if opp_card.card.name == card_name:
+                                nullified_card = self.state.players[attacker_idx].row.pop(i)
+                                self.state.market.append(nullified_card.card)
+                                break
 
     def _play_card(self, action: PlayAction) -> CardInPlay | None:
         """
@@ -122,6 +147,10 @@ class GameEngine:
             face_up=not action.face_down,
         )
 
+        # Store trap side for Ambush trap
+        if action.face_down and card.card_type == CardType.TRAP:
+            card_in_play.metadata["trap_side"] = action.side
+
         # Check if card is blocked by boomerang cooldown
         for effect in self.state.active_effects:
             if (effect.effect_type == "boomerang_cooldown" and
@@ -131,12 +160,22 @@ class GameEngine:
                 player.hand.append(card)
                 return None
 
-        # Emit card played event (for Snare trap)
+        # Check if side is blocked by Roadblock
+        for effect in self.state.active_effects:
+            if (effect.effect_type == "roadblock" and
+                effect.player_idx == player_idx and
+                effect.data.get("blocked_side") == action.side):
+                # Can't play to this side - put card back
+                player.hand.append(card)
+                return None
+
+        # Emit card played event (for Snare and Ambush traps)
         event = Event(
             event_type=EventType.CARD_PLAYED,
             player_idx=player_idx,
             card_name=card.name,
             icon=card.icon,
+            data={"side": action.side},
         )
         self.state.turn_events.append(event)
         self._check_traps(event)
@@ -158,11 +197,13 @@ class GameEngine:
             # If row exceeds 3, push from right
             if len(player.row) > 3:
                 pushed_card = player.row.pop()
+                pushed_card.metadata["exit_side"] = Side.RIGHT
         else:
             player.row.append(card_in_play)
             # If row exceeds 3, push from left
             if len(player.row) > 3:
                 pushed_card = player.row.pop(0)
+                pushed_card.metadata["exit_side"] = Side.LEFT
 
         # Check for center scoring
         self._check_center_trigger(player_idx)
@@ -208,7 +249,24 @@ class GameEngine:
             pushed = center_card.metadata.pop("kickback_pushed_card")
             if pushed in player.row:
                 player.row.remove(pushed)
+                # Determine which side was pushed
+                if player.row.index(center_card) == 0:
+                    # Center card moved to left, so right edge was pushed
+                    pushed.metadata["exit_side"] = Side.RIGHT
+                else:
+                    # Center card moved to right, so left edge was pushed
+                    pushed.metadata["exit_side"] = Side.LEFT
                 self._handle_pushed_card(pushed, player_idx)
+
+        # Handle Compressor's double push effect
+        if "compressor_pushed_cards" in center_card.metadata:
+            pushed_cards = center_card.metadata.pop("compressor_pushed_cards")
+            for i, pushed in enumerate(pushed_cards):
+                if pushed in player.row:
+                    player.row.remove(pushed)
+                    # First card is left edge, second is right edge
+                    pushed.metadata["exit_side"] = Side.LEFT if i == 0 else Side.RIGHT
+                    self._handle_pushed_card(pushed, player_idx)
 
         # Check for pending hand limit enforcement (e.g., from Hot Potato)
         self._enforce_pending_hand_limits()
@@ -250,8 +308,33 @@ class GameEngine:
             points = pushed_card.card.effect(self.state, pushed_card, player_idx, agent)
             self.state.players[player_idx].score += points
 
+            # Handle Sabotage effect
+            if pushed_card.metadata.get("pending_sabotage"):
+                pushed_card.metadata.pop("pending_sabotage")
+                opponent_idx = 1 - player_idx
+                opponent_row = self.state.players[opponent_idx].row
+                opponent_agent = self.agents[opponent_idx]
+
+                if opponent_row:
+                    from .state import EffectChoice
+                    choice = EffectChoice(
+                        choice_type="sabotage_edge",
+                        options=[Side.LEFT, Side.RIGHT] if len(opponent_row) > 1 else [Side.LEFT],
+                        description="Choose which edge card to trash (Sabotage)"
+                    )
+                    edge_choice = opponent_agent.choose_effect_option(self.state, opponent_idx, choice)
+
+                    # Remove and trash the chosen edge card
+                    if edge_choice == Side.LEFT:
+                        opponent_row.pop(0)
+                    else:
+                        opponent_row.pop(-1)
+
+        # Handle Phoenix - goes to top of deck instead of market
+        if pushed_card.metadata.get("phoenix_to_deck"):
+            self.state.deck.append(pushed_card.card)
         # Add to market (unless special handling)
-        if not pushed_card.metadata.get("skip_market"):
+        elif not pushed_card.metadata.get("skip_market"):
             self.state.market.append(pushed_card.card)
 
         # Handle market overflow

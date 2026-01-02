@@ -49,6 +49,7 @@ class Event:
     card_name: str | None = None
     icon: Icon | None = None
     points: int = 0
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
