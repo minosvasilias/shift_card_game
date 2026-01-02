@@ -34,8 +34,15 @@ def print_summary_report(metrics: SimulationMetrics) -> None:
     print("-" * 40)
     print(f"Avg score (P0):      {metrics.avg_score_p0:.1f}")
     print(f"Avg score (P1):      {metrics.avg_score_p1:.1f}")
+    print(f"Score range:         {metrics.min_score} - {metrics.max_score}")
     print(f"Avg score margin:    {metrics.avg_score_margin:.1f}")
+    print(f"Score diff range:    {metrics.min_score_diff} - {metrics.max_score_diff}")
     print(f"Avg game length:     {metrics.avg_turns:.1f} turns")
+    print()
+
+    print("CARD VARIETY")
+    print("-" * 40)
+    print(f"Avg unique cards:    {metrics.avg_unique_cards:.1f} / 25")
     print()
 
 
