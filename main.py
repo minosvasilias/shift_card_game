@@ -52,20 +52,36 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
         args: Tuple of (game_index, seed, max_turns, agent0_type, agent1_type)
 
     Returns:
-        Dict with game results
+        Dict with game results (agent-based, not position-based)
     """
     game_idx, base_seed, max_turns, agent0_type, agent1_type = args
 
     # Create unique seed for this game
     seed = base_seed + game_idx if base_seed is not None else None
 
+    import random
+    rng = random.Random(seed)
+
+    # Randomize player positions (50/50 for each game)
+    swap_positions = rng.choice([True, False])
+
     # Create agents with their own seeds
     agent0 = _create_agent(agent0_type, seed)
     agent1 = _create_agent(agent1_type, seed + 1000000 if seed else None)
 
+    # Assign to positions
+    if swap_positions:
+        # agent0 is P1 (second), agent1 is P0 (first)
+        agents = (agent1, agent0)
+        agent0_position = 1
+    else:
+        # agent0 is P0 (first), agent1 is P1 (second)
+        agents = (agent0, agent1)
+        agent0_position = 0
+
     # Run game
     engine = GameEngine(
-        agents=(agent0, agent1),
+        agents=agents,
         seed=seed,
         max_turns=max_turns,
     )
@@ -73,18 +89,31 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
     final_state = engine.run_game()
     winner = engine.get_winner()
 
+    # Map position-based winner to agent-based winner
+    if winner is None:
+        agent_winner = None
+    elif winner == agent0_position:
+        agent_winner = 0  # agent0 won
+    else:
+        agent_winner = 1  # agent1 won
+
     # Calculate unique cards entered (25 total - remaining in deck)
     unique_cards_entered = 25 - len(final_state.deck)
 
+    # Get scores by agent (not by position)
+    agent0_score = final_state.players[agent0_position].score
+    agent1_score = final_state.players[1 - agent0_position].score
+
     return {
-        "winner": winner,
-        "player0_score": final_state.players[0].score,
-        "player1_score": final_state.players[1].score,
+        "winner": agent_winner,  # Which agent won (0, 1, or None)
+        "agent0_score": agent0_score,
+        "agent1_score": agent1_score,
         "total_turns": final_state.turn_counter,
-        "cards_p0": [c.name for c in final_state.players[0].row],
-        "cards_p1": [c.name for c in final_state.players[1].row],
+        "cards_agent0": [c.name for c in final_state.players[agent0_position].row],
+        "cards_agent1": [c.name for c in final_state.players[1 - agent0_position].row],
         "seed": seed,
         "unique_cards_entered": unique_cards_entered,
+        "position_winner": winner,  # Position-based winner for first-player advantage
     }
 
 
@@ -182,19 +211,20 @@ def simulate(
                     desc="Simulating",
                 ))
 
-        # Collect results
+        # Collect results (now agent-based)
         for result in results:
             from analytics.collector import GameRecord
             record = GameRecord(
                 game_id=collector._next_game_id,
-                winner=result["winner"],
-                player0_score=result["player0_score"],
-                player1_score=result["player1_score"],
+                winner=result["winner"],  # agent winner (0 or 1)
+                player0_score=result["agent0_score"],
+                player1_score=result["agent1_score"],
                 total_turns=result["total_turns"],
-                cards_played_p0=result["cards_p0"],
-                cards_played_p1=result["cards_p1"],
+                cards_played_p0=result["cards_agent0"],
+                cards_played_p1=result["cards_agent1"],
                 seed=result["seed"],
                 unique_cards_entered=result["unique_cards_entered"],
+                position_winner=result["position_winner"],  # for first-player advantage
             )
             collector.games.append(record)
             collector._next_game_id += 1
@@ -206,18 +236,61 @@ def simulate(
 
         for i in iterator:
             game_seed = seed + i if seed is not None else None
+
+            import random
+            rng = random.Random(game_seed)
+
+            # Randomize player positions
+            swap_positions = rng.choice([True, False])
+
             a0 = _create_agent(agent0, game_seed)
             a1 = _create_agent(agent1, game_seed + 1000000 if game_seed else None)
 
+            # Assign to positions
+            if swap_positions:
+                agents = (a1, a0)
+                agent0_position = 1
+            else:
+                agents = (a0, a1)
+                agent0_position = 0
+
             engine = GameEngine(
-                agents=(a0, a1),
+                agents=agents,
                 seed=game_seed,
                 max_turns=turns,
             )
 
             final_state = engine.run_game()
             winner = engine.get_winner()
-            collector.record_game(final_state, winner, seed=game_seed)
+
+            # Map position-based winner to agent-based winner
+            if winner is None:
+                agent_winner = None
+            elif winner == agent0_position:
+                agent_winner = 0
+            else:
+                agent_winner = 1
+
+            # Create game record with agent-based data
+            from analytics.collector import GameRecord
+            agent0_score = final_state.players[agent0_position].score
+            agent1_score = final_state.players[1 - agent0_position].score
+            unique_cards_entered = 25 - len(final_state.deck)
+
+            record = GameRecord(
+                game_id=collector._next_game_id,
+                winner=agent_winner,
+                player0_score=agent0_score,
+                player1_score=agent1_score,
+                total_turns=final_state.turn_counter,
+                cards_played_p0=[c.name for c in final_state.players[agent0_position].row],
+                cards_played_p1=[c.name for c in final_state.players[1 - agent0_position].row],
+                seed=game_seed,
+                unique_cards_entered=unique_cards_entered,
+                position_winner=winner,  # for first-player advantage
+            )
+            collector.games.append(record)
+            collector._next_game_id += 1
 
     # Calculate metrics
     metrics = calculate_metrics(collector)

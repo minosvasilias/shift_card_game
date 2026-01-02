@@ -24,15 +24,16 @@ class CardPlayRecord:
 class GameRecord:
     """Complete record of a single game."""
     game_id: int
-    winner: int | None  # 0, 1, or None for tie
-    player0_score: int
-    player1_score: int
+    winner: int | None  # Agent winner: 0 (agent0), 1 (agent1), or None for tie
+    player0_score: int  # Agent0's score
+    player1_score: int  # Agent1's score
     total_turns: int
-    cards_played_p0: list[str] = field(default_factory=list)
-    cards_played_p1: list[str] = field(default_factory=list)
+    cards_played_p0: list[str] = field(default_factory=list)  # Agent0's cards
+    cards_played_p1: list[str] = field(default_factory=list)  # Agent1's cards
     card_plays: list[CardPlayRecord] = field(default_factory=list)
     seed: int | None = None
     unique_cards_entered: int = 0  # Number of unique cards that entered play (25 - deck size)
+    position_winner: int | None = None  # Position-based winner for first-player advantage
 
     @property
     def score_margin(self) -> int:
@@ -41,8 +42,8 @@ class GameRecord:
 
     @property
     def first_player_won(self) -> bool | None:
-        """Whether the first player (player 0) won."""
-        return self.winner == 0 if self.winner is not None else None
+        """Whether the first player (position 0) won."""
+        return self.position_winner == 0 if self.position_winner is not None else None
 
 
 class GameDataCollector:
