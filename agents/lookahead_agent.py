@@ -211,15 +211,24 @@ class LookaheadAgent(Agent):
         card = player.hand.pop(action.hand_index)
         card_in_play = CardInPlay(card=card, face_up=not action.face_down)
 
-        # Add card to row
+        # Add card to row and track if a card was pushed out
+        pushed_card = None
         if action.side == Side.LEFT:
             player.row.insert(0, card_in_play)
             if len(player.row) > 3:
-                player.row.pop()  # Push out right card
+                pushed_card = player.row.pop()  # Push out right card
         else:
             player.row.append(card_in_play)
             if len(player.row) > 3:
-                player.row.pop(0)  # Push out left card
+                pushed_card = player.row.pop(0)  # Push out left card
+
+        # Evaluate exit effect if a card was pushed
+        if pushed_card and pushed_card.face_up:
+            if pushed_card.card.card_type == CardType.EXIT:
+                exit_score = self.greedy._estimate_exit_score(
+                    pushed_card, new_state, player_idx
+                )
+                player.score += int(exit_score)
 
         # Simplified scoring estimation (use greedy's estimation)
         # This is approximate - full simulation would be very expensive

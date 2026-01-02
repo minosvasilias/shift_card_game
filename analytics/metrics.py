@@ -100,9 +100,10 @@ def calculate_metrics(collector: GameDataCollector) -> SimulationMetrics:
     min_score_diff = min(all_margins)
     max_score_diff = max(all_margins)
 
-    # First player win rate (excluding ties)
+    # First player win rate (based on position, not agent - excluding ties)
     decisive_games = total_games - ties
-    first_player_win_rate = player0_wins / decisive_games if decisive_games > 0 else 0.5
+    position0_wins = sum(1 for g in games if g.position_winner == 0)
+    first_player_win_rate = position0_wins / decisive_games if decisive_games > 0 else 0.5
 
     # Card metrics
     card_stats = collector.get_card_appearances()
