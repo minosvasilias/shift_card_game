@@ -192,20 +192,11 @@ class GreedyAgent(Agent):
                     icons |= c.effective_icons
             return 3 if len(icons) == 3 else 1
 
-        elif name == "Buddy System":
-            # This triggers when there are 3 cards, but scores only if 2 cards
-            # So it would score 0 when triggered as center
-            return 0
-
         elif name == "Jealous Unit":
             opponent_row = state.players[1 - player_idx].row
             center_icons = center_card.effective_icons
             count = sum(1 for c in opponent_row if c.effective_icons & center_icons)
             return 2 * count
-
-        elif name == "Copycat":
-            # Would need to track last scores - estimate conservatively
-            return 1
 
         elif name == "Mimic":
             return 2

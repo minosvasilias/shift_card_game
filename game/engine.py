@@ -244,9 +244,6 @@ class GameEngine:
             center_card.card.effect, self.state, center_card, player_idx, agent
         )
 
-        # Store for Copycat
-        center_card.metadata["last_center_score"] = points
-
         # Apply points
         player.score += points
 

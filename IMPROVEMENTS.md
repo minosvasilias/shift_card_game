@@ -60,11 +60,6 @@ This is significant. Consider:
 - The cooldown makes it clunky
 - Consider: Remove cooldown, or add exit score (e.g., "Score 1. Return to hand")
 
-**Copycat (35.3% win rate, 3148 appearances)**
-- Relies on adjacent cards having scored well
-- Often scores 0-1 because adjacent cards haven't triggered
-- Consider: Copy the HIGHER of adjacent scores, not lower
-
 ### Traps Analysis
 
 | Trap | Win Rate | Notes |
@@ -117,4 +112,3 @@ Consider: This may be working as designed - a risky card.
 3. **Medium**: Buff Patience Circuit, Scavenger, One-Shot
 4. **Medium**: Rework or buff Snare and False Flag triggers
 5. **Low**: Consider Embargo nerf if it remains dominant
-6. **Low**: Evaluate if Copycat should copy higher score instead of lower

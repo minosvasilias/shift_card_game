@@ -126,18 +126,6 @@ def effect_loner_bot(state: GameState, card: CardInPlay, player_idx: int, agent:
     return 4
 
 
-def effect_copycat(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
-    """Score points equal to the lower of adjacent cards' last center-scores."""
-    row = state.players[player_idx].row
-    position = row.index(card)
-    left, right = state.get_adjacent_cards(player_idx, position)
-
-    left_score = left.metadata.get("last_center_score", 0) if left else 0
-    right_score = right.metadata.get("last_center_score", 0) if right else 0
-
-    return min(left_score, right_score)
-
-
 def effect_siphon_drone(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 3. Opponent also scores 2."""
     opponent_idx = 1 - player_idx
@@ -249,13 +237,6 @@ def effect_void(state: GameState, card: CardInPlay, player_idx: int, agent: Agen
     for p in state.players:
         empty_slots += 3 - len(p.row)
     return 2 * empty_slots
-
-
-def effect_buddy_system(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
-    """Score 3 if there is exactly one other card in your row. Otherwise 0."""
-    row = state.players[player_idx].row
-    # "One other card" means row length is 2 (this card + one other)
-    return 3 if len(row) == 2 else 0
 
 
 def effect_mimic(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
@@ -495,7 +476,7 @@ async def effect_chain_reaction(state: GameState, card: CardInPlay, player_idx: 
             else:
                 additional_score = result
             score += additional_score
-            # Store the last score for cards like Copycat
+            # Store the last score for display purposes
             left_card.metadata["last_center_score"] = additional_score
 
     return score

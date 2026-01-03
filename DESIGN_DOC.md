@@ -129,7 +129,6 @@ All cards are unique—each appears exactly once in the deck.
 |------|------|---------------|
 | Calibration Unit | Gear | Score 2 points. |
 | Loner Bot | Chip | Score 4 if neither adjacent card shares an icon with this. Otherwise score 0. |
-| Copycat | Gear | Score points equal to the lower of your two adjacent cards' last center-scores. |
 | Siphon Drone | Spark | Score 3. Opponent also scores 2. |
 | Jealous Unit | Heart | Score 2 per card in opponent's row that shares an icon with this card. |
 | Sequence Bot | Chip | Score 3 if your row has exactly three different icons. Otherwise score 1. |
@@ -137,7 +136,6 @@ All cards are unique—each appears exactly once in the deck.
 | Patience Circuit | Chip | Note the current turn number. At end of game, score points equal to turns elapsed since this scored. |
 | Turncoat | Heart | Score 2. Swap this card with one card in opponent's row (your choice). That card enters your row in this slot. |
 | Void | None | Score 2 per empty slot across both rows. |
-| Buddy System | Heart | Score 3 if there is exactly one other card in your row. Otherwise score 0. |
 | Mimic | Chip | This card's icon becomes the icon of the card to its left until it leaves. Score 2. If the card to your left exits, this also exits. |
 | Tug-of-War | Gear | Score 2. Opponent must push out one of their edge cards (their choice) if they have 3 cards. |
 | Hollow Frame | Gear | Score 0. This card counts as having every icon for adjacency purposes. |

@@ -40,14 +40,6 @@ register_card(Card(
 ))
 
 register_card(Card(
-    name="Copycat",
-    icon=Icon.GEAR,
-    card_type=CardType.CENTER,
-    effect_text="Score points equal to the lower of your adjacent cards' last scores.",
-    effect=effects.effect_copycat,
-))
-
-register_card(Card(
     name="Siphon Drone",
     icon=Icon.SPARK,
     card_type=CardType.CENTER,
@@ -101,14 +93,6 @@ register_card(Card(
     card_type=CardType.CENTER,
     effect_text="Score 2 per empty slot across both rows.",
     effect=effects.effect_void,
-))
-
-register_card(Card(
-    name="Buddy System",
-    icon=Icon.HEART,
-    card_type=CardType.CENTER,
-    effect_text="Score 3 if you have exactly one other card in your row. Otherwise 0.",
-    effect=effects.effect_buddy_system,
 ))
 
 register_card(Card(
