@@ -1,5 +1,6 @@
 """Track Kickback triggers during actual gameplay, not just final state."""
 
+import asyncio
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY
 from agents.lookahead_agent import LookaheadAgent
@@ -14,7 +15,7 @@ class TrackingEngine(GameEngine):
         self.kickback_plays = 0
         self.kickback_player = None
 
-    def _check_center_trigger(self, player_idx: int):
+    async def _check_center_trigger(self, player_idx: int):
         """Override to track Kickback triggers."""
         player = self.state.players[player_idx]
 
@@ -30,9 +31,9 @@ class TrackingEngine(GameEngine):
                 self.kickback_player = player_idx
 
         # Call parent implementation
-        super()._check_center_trigger(player_idx)
+        await super()._check_center_trigger(player_idx)
 
-    def _play_card(self, action):
+    async def _play_card(self, action):
         """Override to track Kickback plays."""
         player = self.state.current
         player_idx = self.state.current_player
@@ -44,7 +45,7 @@ class TrackingEngine(GameEngine):
                 if self.kickback_player is None:
                     self.kickback_player = player_idx
 
-        return super()._play_card(action)
+        return await super()._play_card(action)
 
 
 def analyze_kickback_triggers(num_games=100, seed=42):
@@ -70,7 +71,7 @@ def analyze_kickback_triggers(num_games=100, seed=42):
             max_turns=10,
         )
 
-        engine.run_game()
+        asyncio.run(engine.run_game())
         winner = engine.get_winner()
 
         if engine.kickback_plays > 0:

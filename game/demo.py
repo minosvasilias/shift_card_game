@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Callable
 
@@ -97,7 +98,7 @@ class DemoEngine:
     def _get_current_agent(self) -> Agent:
         return self.agents[self.state.current_player]
 
-    def _check_traps(self, event: Event) -> None:
+    async def _check_traps(self, event: Event) -> None:
         """Check and trigger any traps for an event."""
         opponent_idx = 1 - event.player_idx
         opponent_row = self.state.players[opponent_idx].row
@@ -120,7 +121,7 @@ class DemoEngine:
                         self.state.players[event.player_idx].score -= cancel_amount
                         self.log(f"    P{event.player_idx}'s score cancelled (-{cancel_amount})")
 
-    def _play_card(self, action: PlayAction) -> CardInPlay | None:
+    async def _play_card(self, action: PlayAction) -> CardInPlay | None:
         """Play a card from hand to the row."""
         player = self.state.current
         player_idx = self.state.current_player
@@ -155,7 +156,7 @@ class DemoEngine:
             icon=card.icon,
         )
         self.state.turn_events.append(event)
-        self._check_traps(event)
+        await self._check_traps(event)
 
         # Check Snare
         opponent_idx = 1 - player_idx
@@ -179,11 +180,11 @@ class DemoEngine:
                 pushed_card = player.row.pop(0)
 
         # Check center scoring
-        self._check_center_trigger(player_idx)
+        await self._check_center_trigger(player_idx)
 
         return pushed_card
 
-    def _check_center_trigger(self, player_idx: int) -> None:
+    async def _check_center_trigger(self, player_idx: int) -> None:
         """Check if center card should trigger."""
         player = self.state.players[player_idx]
 
@@ -213,7 +214,7 @@ class DemoEngine:
                 points=points,
             )
             self.state.turn_events.append(event)
-            self._check_traps(event)
+            await self._check_traps(event)
 
         # Handle Kickback's push effect
         if "kickback_pushed_card" in center_card.metadata:
@@ -221,12 +222,12 @@ class DemoEngine:
             if pushed in player.row:
                 player.row.remove(pushed)
                 self.log(f"  ⚡ Kickback pushes [{pushed.name}] out!")
-                self._handle_pushed_card(pushed, player_idx)
+                await self._handle_pushed_card(pushed, player_idx)
 
         # Check for pending hand limit enforcement (e.g., from Hot Potato)
-        self._enforce_pending_hand_limits()
+        await self._enforce_pending_hand_limits()
 
-    def _enforce_pending_hand_limits(self) -> None:
+    async def _enforce_pending_hand_limits(self) -> None:
         """Enforce hand limits for any players marked as needing it."""
         from .state import EffectChoice
 
@@ -250,13 +251,13 @@ class DemoEngine:
                     options=options,
                     description=f"Choose which card to discard (cannot discard {protected_card_name})",
                 )
-                discard_idx = agent.choose_effect_option(self.state, check_player_idx, choice)
+                discard_idx = await agent.choose_effect_option(self.state, check_player_idx, choice)
                 discarded = player.hand.pop(discard_idx)
                 self.log(f"  ✗ Hand limit - P{check_player_idx} discards [{discarded.name}]")
 
             del self.state.pending_hand_limit_checks[check_player_idx]
 
-    def _handle_pushed_card(self, pushed_card: CardInPlay, player_idx: int) -> None:
+    async def _handle_pushed_card(self, pushed_card: CardInPlay, player_idx: int) -> None:
         """Handle a pushed out card."""
         points = 0
 
@@ -280,11 +281,11 @@ class DemoEngine:
                 options=list(range(len(self.state.market))),
                 description="Choose which market card to trash",
             )
-            trash_idx = agent.choose_effect_option(self.state, player_idx, choice)
+            trash_idx = await agent.choose_effect_option(self.state, player_idx, choice)
             trashed = self.state.market.pop(trash_idx)
             self.log(f"  ✗ Market full - [{trashed.name}] trashed")
 
-    def _handle_draw(self, player_idx: int) -> None:
+    async def _handle_draw(self, player_idx: int) -> None:
         """Handle draw phase."""
         player = self.state.players[player_idx]
         agent = self.agents[player_idx]
@@ -300,7 +301,7 @@ class DemoEngine:
         if has_embargo:
             self.log(f"  ⚠ Market locked by Embargo")
 
-        draw_choice = agent.choose_draw(self.state, player_idx)
+        draw_choice = await agent.choose_draw(self.state, player_idx)
 
         if draw_choice == DrawChoice.DECK and not can_draw_deck:
             draw_choice = DrawChoice.MARKET
@@ -320,7 +321,7 @@ class DemoEngine:
                     options=list(range(len(self.state.market))),
                     description="Choose market card",
                 )
-                market_idx = agent.choose_effect_option(self.state, player_idx, choice)
+                market_idx = await agent.choose_effect_option(self.state, player_idx, choice)
 
                 # Check False Flag
                 opponent_idx = 1 - player_idx
@@ -345,7 +346,7 @@ class DemoEngine:
                         card_name=drawn.name,
                     )
                     self.state.turn_events.append(event)
-                    self._check_traps(event)
+                    await self._check_traps(event)
 
         self._pause()
 
@@ -357,7 +358,7 @@ class DemoEngine:
                 options=list(range(len(player.hand))),
                 description="Discard to hand limit",
             )
-            discard_idx = agent.choose_effect_option(self.state, player_idx, choice)
+            discard_idx = await agent.choose_effect_option(self.state, player_idx, choice)
             discarded = player.hand.pop(discard_idx)
             self.log(f"  ✗ Hand limit - P{player_idx} discards [{discarded.name}]")
 
@@ -367,7 +368,7 @@ class DemoEngine:
             if e.expires_turn is None or e.expires_turn > self.state.turn_counter
         ]
 
-    def _handle_pending_effects(self, player_idx: int) -> None:
+    async def _handle_pending_effects(self, player_idx: int) -> None:
         """Handle pending effects."""
         player = self.state.players[player_idx]
         opponent_idx = 1 - player_idx
@@ -382,14 +383,14 @@ class DemoEngine:
                     options=[Side.LEFT, Side.RIGHT],
                     description="Choose edge to push",
                 )
-                edge = agent.choose_effect_option(self.state, opponent_idx, choice)
+                edge = await agent.choose_effect_option(self.state, opponent_idx, choice)
                 edge_name = "LEFT" if edge == Side.LEFT else "RIGHT"
                 if edge == Side.LEFT:
                     pushed = opponent.row.pop(0)
                 else:
                     pushed = opponent.row.pop()
                 self.log(f"  ⚔ Tug-of-War forces P{opponent_idx} to push {edge_name}")
-                self._handle_pushed_card(pushed, opponent_idx)
+                await self._handle_pushed_card(pushed, opponent_idx)
                 card.metadata.pop("pending_tug_of_war")
 
             if card.metadata.get("pending_spite_module") and opponent.row:
@@ -403,7 +404,7 @@ class DemoEngine:
                     options=options,
                     description="Choose edge to push",
                 )
-                edge = agent.choose_effect_option(self.state, opponent_idx, choice)
+                edge = await agent.choose_effect_option(self.state, opponent_idx, choice)
                 if edge == Side.LEFT:
                     pushed = opponent.row.pop(0)
                 else:
@@ -412,7 +413,7 @@ class DemoEngine:
                 self.state.market.append(pushed.card)
                 card.metadata.pop("pending_spite_module")
 
-    def play_turn(self) -> bool:
+    async def play_turn(self) -> bool:
         """Execute one turn with logging."""
         if self.state.game_over:
             return False
@@ -432,17 +433,17 @@ class DemoEngine:
 
         # Play card
         if player.hand:
-            action = agent.choose_action(self.state, player_idx)
-            pushed_card = self._play_card(action)
+            action = await agent.choose_action(self.state, player_idx)
+            pushed_card = await self._play_card(action)
 
             if pushed_card:
-                self._handle_pushed_card(pushed_card, player_idx)
+                await self._handle_pushed_card(pushed_card, player_idx)
 
         # Pending effects
-        self._handle_pending_effects(player_idx)
+        await self._handle_pending_effects(player_idx)
 
         # Draw
-        self._handle_draw(player_idx)
+        await self._handle_draw(player_idx)
 
         # Refill market
         self._refill_market()
@@ -473,15 +474,15 @@ class DemoEngine:
 
         self.state.game_over = True
 
-    def run_demo(self) -> GameState:
-        """Run the entire game with visualization."""
+    async def run_demo_async(self) -> GameState:
+        """Run the entire game with visualization (async version)."""
         self.log("")
         self.log("╔════════════════════════════════════════════════════════════╗")
         self.log("║          ROBOT ASSEMBLY LINE - DEMO GAME                   ║")
         self.log("╚════════════════════════════════════════════════════════════╝")
         self._pause()
 
-        while self.play_turn():
+        while await self.play_turn():
             pass
 
         # Show final state
@@ -509,6 +510,10 @@ class DemoEngine:
         self.log(format_game_end(self.state, winner))
 
         return self.state
+
+    def run_demo(self) -> GameState:
+        """Run the entire game with visualization (sync wrapper)."""
+        return asyncio.run(self.run_demo_async())
 
     def get_winner(self) -> int | None:
         """Get the winner."""

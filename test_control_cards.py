@@ -1,32 +1,32 @@
 """Test the new opponent control cards: Extraction, Purge, and Sniper."""
 
+import asyncio
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY
 from game.state import PlayAction, Side, DrawChoice, CardInPlay
 
 
-class SyncTestAgent:
+class AsyncTestAgent:
     """
-    Simple synchronous test agent for direct effect testing.
-    Effects call agent.choose_effect_option() synchronously, so we need
-    a sync version for direct effect testing outside the async engine.
+    Async test agent for direct effect testing.
+    Effects now call agent.choose_effect_option() asynchronously.
     """
 
     def __init__(self, effect_choices=None):
         self.effect_choices = effect_choices or {}
 
-    def choose_action(self, state, player_idx):
+    async def choose_action(self, state, player_idx):
         return PlayAction(hand_index=0, side=Side.RIGHT, face_down=False)
 
-    def choose_draw(self, state, player_idx):
+    async def choose_draw(self, state, player_idx):
         return DrawChoice.DECK
 
-    def choose_effect_option(self, state, player_idx, choice):
+    async def choose_effect_option(self, state, player_idx, choice):
         # Return predefined choice or default to first option
         return self.effect_choices.get(choice.choice_type, choice.options[0])
 
 
-def test_extraction():
+async def test_extraction_async():
     """Test that Extraction takes a card from opponent's row to your hand."""
     print("=== TESTING EXTRACTION ===\n")
 
@@ -47,12 +47,12 @@ def test_extraction():
     extraction_card = CardInPlay(card=CARD_REGISTRY["Extraction"], face_up=True)
 
     # Agent chooses to extract the first card (index 0)
-    agent = SyncTestAgent(effect_choices={"extraction_target": 0})
+    agent = AsyncTestAgent(effect_choices={"extraction_target": 0})
 
     print(f"Before: Opponent row has {len(state_mock.players[1].row)} cards")
     print(f"Before: Player hand has {len(state_mock.players[0].hand)} cards")
 
-    score = CARD_REGISTRY["Extraction"].effect(state_mock, extraction_card, 0, agent)
+    score = await CARD_REGISTRY["Extraction"].effect(state_mock, extraction_card, 0, agent)
 
     print(f"After: Opponent row has {len(state_mock.players[1].row)} cards")
     print(f"After: Player hand has {len(state_mock.players[0].hand)} cards")
@@ -66,7 +66,12 @@ def test_extraction():
     print("✓ Extraction test passed!\n")
 
 
-def test_purge():
+def test_extraction():
+    """Sync wrapper."""
+    asyncio.run(test_extraction_async())
+
+
+async def test_purge_async():
     """Test that Purge permanently removes a card from opponent's row."""
     print("=== TESTING PURGE ===\n")
 
@@ -88,11 +93,11 @@ def test_purge():
     purge_card = CardInPlay(card=CARD_REGISTRY["Purge"], face_up=True)
 
     # Agent chooses to purge the middle card (index 1)
-    agent = SyncTestAgent(effect_choices={"purge_target": 1})
+    agent = AsyncTestAgent(effect_choices={"purge_target": 1})
 
     print(f"Before: Opponent row has {len(state_mock.players[1].row)} cards")
 
-    score = CARD_REGISTRY["Purge"].effect(state_mock, purge_card, 0, agent)
+    score = await CARD_REGISTRY["Purge"].effect(state_mock, purge_card, 0, agent)
 
     print(f"After: Opponent row has {len(state_mock.players[1].row)} cards")
     print(f"Score: {score}")
@@ -105,7 +110,12 @@ def test_purge():
     print("✓ Purge test passed!\n")
 
 
-def test_sniper():
+def test_purge():
+    """Sync wrapper."""
+    asyncio.run(test_purge_async())
+
+
+async def test_sniper_async():
     """Test that Sniper marks a card to be pushed out with exit effect."""
     print("=== TESTING SNIPER ===\n")
 
@@ -127,11 +137,11 @@ def test_sniper():
     sniper_card = CardInPlay(card=CARD_REGISTRY["Sniper"], face_up=True)
 
     # Agent chooses to snipe the center card (index 1)
-    agent = SyncTestAgent(effect_choices={"sniper_target": 1})
+    agent = AsyncTestAgent(effect_choices={"sniper_target": 1})
 
     print(f"Before: Opponent row has {len(state_mock.players[1].row)} cards")
 
-    score = CARD_REGISTRY["Sniper"].effect(state_mock, sniper_card, 0, agent)
+    score = await CARD_REGISTRY["Sniper"].effect(state_mock, sniper_card, 0, agent)
 
     print(f"After effect: Opponent row still has {len(state_mock.players[1].row)} cards (engine will handle removal)")
     print(f"Sniper metadata set: {sniper_card.metadata.get('sniper_target') is not None}")
@@ -145,6 +155,11 @@ def test_sniper():
     assert score == 2, "Should score 2 points"
 
     print("✓ Sniper test passed!\n")
+
+
+def test_sniper():
+    """Sync wrapper."""
+    asyncio.run(test_sniper_async())
 
 
 if __name__ == "__main__":

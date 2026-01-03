@@ -1,32 +1,32 @@
 """Test to verify Embargo duration and Kickback consecutive triggers."""
 
+import asyncio
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY
 from game.state import PlayAction, Side, DrawChoice
 
 
-class SyncTestAgent:
+class AsyncTestAgent:
     """
-    Simple synchronous test agent for direct effect testing.
-    Effects call agent.choose_effect_option() synchronously, so we need
-    a sync version for direct effect testing outside the async engine.
+    Async test agent for direct effect testing.
+    Effects call agent.choose_effect_option() asynchronously.
     """
 
     def __init__(self, actions=None):
         self.actions = actions or []
         self.action_index = 0
 
-    def choose_action(self, state, player_idx):
+    async def choose_action(self, state, player_idx):
         if self.action_index < len(self.actions):
             action = self.actions[self.action_index]
             self.action_index += 1
             return action
         return PlayAction(hand_index=0, side=Side.RIGHT, face_down=False)
 
-    def choose_draw(self, state, player_idx):
+    async def choose_draw(self, state, player_idx):
         return DrawChoice.DECK
 
-    def choose_effect_option(self, state, player_idx, choice):
+    async def choose_effect_option(self, state, player_idx, choice):
         # For Kickback, always push right
         if choice.choice_type == "kickback_direction":
             return Side.RIGHT
@@ -45,8 +45,8 @@ def test_embargo_duration():
         CARD_REGISTRY["Farewell Unit"],
     ] * 10
 
-    agent0 = SyncTestAgent()
-    agent1 = SyncTestAgent()
+    agent0 = AsyncTestAgent()
+    agent1 = AsyncTestAgent()
 
     engine = GameEngine(
         agents=(agent0, agent1),
@@ -119,7 +119,7 @@ def test_embargo_duration():
     print()
 
 
-def test_kickback_consecutive():
+async def test_kickback_consecutive_async():
     """Test if Kickback can trigger on consecutive turns."""
     print("=== TESTING KICKBACK CONSECUTIVE TRIGGERS ===\n")
 
@@ -129,7 +129,7 @@ def test_kickback_consecutive():
         CARD_REGISTRY["Calibration Unit"],
     ] * 10
 
-    agent = SyncTestAgent()
+    agent = AsyncTestAgent()
 
     from game.state import GameState, PlayerState, CardInPlay
     state = GameState(
@@ -157,9 +157,9 @@ def test_kickback_consecutive():
     print("Kickback is in center position (index 1)")
     print(f"Is center card: {player.row[1].name}")
 
-    # Manually trigger center effect
+    # Manually trigger center effect (now async)
     kickback_card = player.row[1]
-    points = kickback_card.card.effect(state, kickback_card, 0, agent)
+    points = await kickback_card.card.effect(state, kickback_card, 0, agent)
     print(f"Kickback triggers! Scores: {points}")
 
     # Handle the push
@@ -167,7 +167,7 @@ def test_kickback_consecutive():
         pushed = kickback_card.metadata.pop("kickback_pushed_card")
         print(f"Kickback pushes out: {pushed.name}")
 
-        # Trigger exit effect
+        # Trigger exit effect (sync for Farewell Unit)
         if pushed.card.card_type.name == "EXIT":
             exit_points = pushed.card.effect(state, pushed, 0, agent)
             print(f"Exit effect triggers! Scores: {exit_points}")
@@ -196,8 +196,8 @@ def test_kickback_consecutive():
             print("✓ Kickback is STILL the center card!")
             print("✓ Kickback CAN trigger again on consecutive turns!")
 
-            # Trigger again
-            points2 = kickback_card.card.effect(state, kickback_card, 0, agent)
+            # Trigger again (now async)
+            points2 = await kickback_card.card.effect(state, kickback_card, 0, agent)
             print(f"\nKickback triggers AGAIN! Scores: {points2}")
 
             if "kickback_pushed_card" in kickback_card.metadata:
@@ -212,6 +212,11 @@ def test_kickback_consecutive():
     print("2. Add Exit → [A, Kickback, Exit] → trigger again!")
     print("This allows multiple exit triggers and is extremely powerful!")
     print()
+
+
+def test_kickback_consecutive():
+    """Sync wrapper."""
+    asyncio.run(test_kickback_consecutive_async())
 
 
 if __name__ == "__main__":

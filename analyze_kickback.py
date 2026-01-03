@@ -1,5 +1,6 @@
 """Analyze Kickback usage patterns to understand why it underperforms."""
 
+import asyncio
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY, get_all_cards
 from game.state import CardType
@@ -7,7 +8,7 @@ from agents.lookahead_agent import LookaheadAgent
 from collections import defaultdict
 
 
-def track_kickback_game(seed, verbose=False):
+async def track_kickback_game_async(seed, verbose=False):
     """
     Track a single game and record Kickback behavior.
 
@@ -82,7 +83,7 @@ def track_kickback_game(seed, verbose=False):
         )
 
         # Play turn
-        engine.play_turn()
+        await engine.play_turn()
         turn += 1
 
     # Check final state
@@ -102,7 +103,12 @@ def track_kickback_game(seed, verbose=False):
     return kickback_stats
 
 
-def analyze_kickback_performance(num_games=100, seed=42):
+def track_kickback_game(seed, verbose=False):
+    """Sync wrapper for async function."""
+    return asyncio.run(track_kickback_game_async(seed, verbose))
+
+
+async def analyze_kickback_performance_async(num_games=100, seed=42):
     """Run multiple games and analyze Kickback patterns."""
     print("=== ANALYZING KICKBACK PERFORMANCE ===\n")
     print(f"Running {num_games} games with lookahead:3 agents...\n")
@@ -111,7 +117,7 @@ def analyze_kickback_performance(num_games=100, seed=42):
     games_with_kickback = 0
 
     for i in range(num_games):
-        stats = track_kickback_game(seed + i)
+        stats = await track_kickback_game_async(seed + i)
         all_stats.append(stats)
         if stats['kickback_appeared']:
             games_with_kickback += 1
@@ -201,6 +207,11 @@ def analyze_kickback_performance(num_games=100, seed=42):
         print("   The tempo loss may outweigh the points.")
 
     print()
+
+
+def analyze_kickback_performance(num_games=100, seed=42):
+    """Sync wrapper for async function."""
+    asyncio.run(analyze_kickback_performance_async(num_games, seed))
 
 
 if __name__ == "__main__":

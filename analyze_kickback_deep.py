@@ -1,11 +1,12 @@
 """Deep analysis: WHY isn't Kickback triggering?"""
 
+import asyncio
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY
 from agents.lookahead_agent import LookaheadAgent
 
 
-def analyze_single_kickback_game(seed, verbose=True):
+async def analyze_single_kickback_game_async(seed, verbose=True):
     """Track ONE game in detail to see what happens to Kickback."""
     agent0 = LookaheadAgent(seed=seed, depth=3)
     agent1 = LookaheadAgent(seed=seed + 1000000, depth=3)
@@ -59,7 +60,7 @@ def analyze_single_kickback_game(seed, verbose=True):
                 kickback_events.append(f"Turn {turn}: Kickback in market")
 
         # Play turn
-        engine.play_turn()
+        await engine.play_turn()
         turn += 1
 
     # Print events
@@ -83,7 +84,12 @@ def analyze_single_kickback_game(seed, verbose=True):
     return len(kickback_events) > 0
 
 
-def find_kickback_games(max_games=50):
+def analyze_single_kickback_game(seed, verbose=True):
+    """Sync wrapper for async function."""
+    return asyncio.run(analyze_single_kickback_game_async(seed, verbose))
+
+
+async def find_kickback_games_async(max_games=50):
     """Find games where Kickback appears and analyze them."""
     print("=== SEARCHING FOR KICKBACK GAMES ===\n")
 
@@ -98,7 +104,7 @@ def find_kickback_games(max_games=50):
         agent0 = LookaheadAgent(seed=seed, depth=3)
         agent1 = LookaheadAgent(seed=seed + 1000000, depth=3)
         engine = GameEngine(agents=(agent0, agent1), seed=seed, max_turns=10)
-        final_state = engine.run_game()
+        final_state = await engine.run_game()
 
         has_kickback = False
         for player in final_state.players:
@@ -109,7 +115,7 @@ def find_kickback_games(max_games=50):
 
         if has_kickback:
             games_found += 1
-            analyze_single_kickback_game(seed, verbose=True)
+            await analyze_single_kickback_game_async(seed, verbose=True)
 
         games_analyzed += 1
 
@@ -117,7 +123,12 @@ def find_kickback_games(max_games=50):
     print()
 
 
-def analyze_lookahead_heuristic():
+def find_kickback_games(max_games=50):
+    """Sync wrapper for async function."""
+    asyncio.run(find_kickback_games_async(max_games))
+
+
+async def analyze_lookahead_heuristic_async():
     """Check how lookahead agents evaluate Kickback."""
     print("=== LOOKAHEAD AGENT EVALUATION ===\n")
 
@@ -155,7 +166,7 @@ def analyze_lookahead_heuristic():
     print("-" * 60)
 
     # Get agent's action
-    action = agent.choose_action(state, 0)
+    action = await agent.choose_action(state, 0)
 
     card_played = state.players[0].hand[action.hand_index].name
     side_str = "LEFT" if action.side == Side.LEFT else "RIGHT"
@@ -189,7 +200,7 @@ def analyze_lookahead_heuristic():
     print("  Next card will make Kickback trigger!")
     print()
 
-    action2 = agent.choose_action(state2, 0)
+    action2 = await agent.choose_action(state2, 0)
     side_str2 = "LEFT" if action2.side == Side.LEFT else "RIGHT"
 
     print(f"Agent plays Farewell Unit to {side_str2}")
@@ -199,6 +210,11 @@ def analyze_lookahead_heuristic():
     else:
         print("  → This avoids putting Kickback in center")
     print()
+
+
+def analyze_lookahead_heuristic():
+    """Sync wrapper for async function."""
+    asyncio.run(analyze_lookahead_heuristic_async())
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from multiprocessing import Pool, cpu_count
 from typing import Any
@@ -86,7 +87,7 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
         max_turns=max_turns,
     )
 
-    final_state = engine.run_game()
+    final_state = asyncio.run(engine.run_game())
     winner = engine.get_winner()
 
     # Map position-based winner to agent-based winner
@@ -263,7 +264,7 @@ def simulate(
                 max_turns=turns,
             )
 
-            final_state = engine.run_game()
+            final_state = asyncio.run(engine.run_game())
             winner = engine.get_winner()
 
             # Map position-based winner to agent-based winner
@@ -353,7 +354,7 @@ def quick_test(games: int, seed: int, turns: int):
                 seed=game_seed,
                 max_turns=turns,
             )
-            final_state = engine.run_game()
+            final_state = asyncio.run(engine.run_game())
             winner = engine.get_winner()
             collector.record_game(final_state, winner, seed=game_seed)
         except Exception as e:

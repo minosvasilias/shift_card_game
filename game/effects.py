@@ -53,12 +53,14 @@ def get_unique_icons_in_row(state: GameState, player_idx: int) -> set:
 def enforce_hand_limit(state: GameState, player_idx: int, agent: Agent) -> list:
     """
     Enforce the hand limit of 2 cards, forcing immediate discards.
-    (Synchronous version - for non-async contexts like lookahead simulation)
+    (Synchronous version - for non-async contexts like direct effect testing)
+
+    NOTE: This only works with sync agents (like SyncTestAgent).
+    For async agents, use enforce_hand_limit_async() instead.
 
     Returns list of discarded card names for logging.
     """
     from .state import EffectChoice
-    import asyncio
 
     discarded = []
     hand = state.players[player_idx].hand
@@ -69,13 +71,8 @@ def enforce_hand_limit(state: GameState, player_idx: int, agent: Agent) -> list:
             options=list(range(len(hand))),
             description="Choose which card to discard (hand limit is 2)",
         )
-        # Handle both sync and async agents
-        result = agent.choose_effect_option(state, player_idx, choice)
-        if asyncio.iscoroutine(result):
-            # If we get a coroutine, we need to run it - this shouldn't happen in sync context
-            discard_idx = asyncio.get_event_loop().run_until_complete(result)
-        else:
-            discard_idx = result
+        # This assumes a sync agent - async agents must use enforce_hand_limit_async
+        discard_idx = agent.choose_effect_option(state, player_idx, choice)
         discarded_card = hand.pop(discard_idx)
         discarded.append(discarded_card.name)
 
@@ -160,7 +157,7 @@ def effect_sequence_bot(state: GameState, card: CardInPlay, player_idx: int, age
     return 3 if len(icons) == 3 else 1
 
 
-def effect_kickback(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_kickback(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 2. Then push this card one slot toward either edge (your choice).
 
     When Kickback pushes toward an edge, it displaces the card in that direction.
@@ -188,7 +185,7 @@ def effect_kickback(state: GameState, card: CardInPlay, player_idx: int, agent: 
             options=options,
             description="Choose which direction to push Kickback"
         )
-        direction = agent.choose_effect_option(state, player_idx, choice)
+        direction = await agent.choose_effect_option(state, player_idx, choice)
 
         # The card at the edge in the push direction gets pushed out
         # We mark this for the engine to handle (so exit effects trigger properly)
@@ -217,7 +214,7 @@ def effect_patience_circuit(state: GameState, card: CardInPlay, player_idx: int,
     return 0  # Actual scoring happens at game end
 
 
-def effect_turncoat(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_turncoat(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 2. Swap this card with one card in opponent's row."""
     from .state import EffectChoice
 
@@ -233,7 +230,7 @@ def effect_turncoat(state: GameState, card: CardInPlay, player_idx: int, agent: 
         options=list(range(len(opponent_row))),
         description="Choose which opponent card to swap with"
     )
-    target_idx = agent.choose_effect_option(state, player_idx, choice)
+    target_idx = await agent.choose_effect_option(state, player_idx, choice)
 
     my_row = state.players[player_idx].row
     my_position = my_row.index(card)
@@ -275,7 +272,7 @@ def effect_mimic(state: GameState, card: CardInPlay, player_idx: int, agent: Age
     return 2
 
 
-def effect_tug_of_war(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_tug_of_war(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 1. Opponent must push out one of their edge cards if they have 3."""
     from .state import EffectChoice, Side
 
@@ -329,7 +326,7 @@ def effect_embargo(state: GameState, card: CardInPlay, player_idx: int, agent: A
     return 1
 
 
-def effect_scavenger(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_scavenger(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 0. Look at all face-down cards. May swap this with one of them."""
     from .state import EffectChoice
 
@@ -346,7 +343,7 @@ def effect_scavenger(state: GameState, card: CardInPlay, player_idx: int, agent:
             options=[None] + face_down_cards,  # None = don't swap
             description="Choose a face-down card to swap with, or skip"
         )
-        selected = agent.choose_effect_option(state, player_idx, choice)
+        selected = await agent.choose_effect_option(state, player_idx, choice)
 
         if selected is not None:
             target_player, target_idx, target_card = selected
@@ -360,7 +357,7 @@ def effect_scavenger(state: GameState, card: CardInPlay, player_idx: int, agent:
     return 0
 
 
-def effect_magnet(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_magnet(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 1. Pull one card from market into an adjacent slot."""
     from .state import EffectChoice, Side
 
@@ -376,7 +373,7 @@ def effect_magnet(state: GameState, card: CardInPlay, player_idx: int, agent: Ag
         options=list(range(len(state.market))),
         description="Choose which market card to pull"
     )
-    market_idx = agent.choose_effect_option(state, player_idx, choice)
+    market_idx = await agent.choose_effect_option(state, player_idx, choice)
 
     # Choose which side to place it
     sides = []
@@ -391,7 +388,7 @@ def effect_magnet(state: GameState, card: CardInPlay, player_idx: int, agent: Ag
             options=sides,
             description="Choose which side to place the card"
         )
-        side = agent.choose_effect_option(state, player_idx, choice)
+        side = await agent.choose_effect_option(state, player_idx, choice)
 
         pulled_card = state.market.pop(market_idx)
         from .state import CardInPlay as CIP
@@ -433,7 +430,7 @@ def effect_hot_potato(state: GameState, card: CardInPlay, player_idx: int, agent
     return 2
 
 
-def effect_parasite(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_parasite(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 4. Swap positions with a card in opponent's row."""
     from .state import EffectChoice
 
@@ -449,7 +446,7 @@ def effect_parasite(state: GameState, card: CardInPlay, player_idx: int, agent: 
         options=list(range(len(opponent_row))),
         description="Choose which opponent card to swap positions with"
     )
-    target_idx = agent.choose_effect_option(state, player_idx, choice)
+    target_idx = await agent.choose_effect_option(state, player_idx, choice)
 
     my_row = state.players[player_idx].row
     my_position = my_row.index(card)
@@ -476,9 +473,10 @@ def effect_auctioneer(state: GameState, card: CardInPlay, player_idx: int, agent
     return 2 * len(unique_icons)
 
 
-def effect_chain_reaction(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_chain_reaction(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 2. Then trigger the center effect of the card to your left (if face-up and CENTER)."""
     from .state import CardType
+    import inspect
 
     row = state.players[player_idx].row
     position = row.index(card)
@@ -491,7 +489,11 @@ def effect_chain_reaction(state: GameState, card: CardInPlay, player_idx: int, a
         # Only trigger if it's face-up and a CENTER card
         if left_card.face_up and left_card.card.card_type == CardType.CENTER:
             # Trigger the left card's effect
-            additional_score = left_card.card.effect(state, left_card, player_idx, agent)
+            result = left_card.card.effect(state, left_card, player_idx, agent)
+            if inspect.isawaitable(result):
+                additional_score = await result
+            else:
+                additional_score = result
             score += additional_score
             # Store the last score for cards like Copycat
             left_card.metadata["last_center_score"] = additional_score
@@ -531,7 +533,7 @@ def effect_compressor(state: GameState, card: CardInPlay, player_idx: int, agent
     return 5
 
 
-def effect_extraction(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_extraction(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 1. Take a card from opponent's row and add it to your hand."""
     from .state import EffectChoice
 
@@ -547,19 +549,19 @@ def effect_extraction(state: GameState, card: CardInPlay, player_idx: int, agent
         options=list(range(len(opponent_row))),
         description="Choose which opponent card to extract to your hand"
     )
-    target_idx = agent.choose_effect_option(state, player_idx, choice)
+    target_idx = await agent.choose_effect_option(state, player_idx, choice)
 
     # Remove the card from opponent's row and add to your hand
     extracted_card = opponent_row.pop(target_idx)
     state.players[player_idx].hand.append(extracted_card.card)
 
     # Enforce hand limit if needed
-    enforce_hand_limit(state, player_idx, agent)
+    await enforce_hand_limit_async(state, player_idx, agent)
 
     return 1
 
 
-def effect_purge(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_purge(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 1. Choose a card in opponent's row and trash it permanently."""
     from .state import EffectChoice
 
@@ -575,7 +577,7 @@ def effect_purge(state: GameState, card: CardInPlay, player_idx: int, agent: Age
         options=list(range(len(opponent_row))),
         description="Choose which opponent card to purge (trash permanently)"
     )
-    target_idx = agent.choose_effect_option(state, player_idx, choice)
+    target_idx = await agent.choose_effect_option(state, player_idx, choice)
 
     # Remove the card from opponent's row (don't add to market - permanently removed)
     opponent_row.pop(target_idx)
@@ -583,7 +585,7 @@ def effect_purge(state: GameState, card: CardInPlay, player_idx: int, agent: Age
     return 1
 
 
-def effect_sniper(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_sniper(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Score 2. Choose any card in opponent's row and push it out (triggers exit effect)."""
     from .state import EffectChoice
 
@@ -599,7 +601,7 @@ def effect_sniper(state: GameState, card: CardInPlay, player_idx: int, agent: Ag
         options=list(range(len(opponent_row))),
         description="Choose which opponent card to snipe (push out)"
     )
-    target_idx = agent.choose_effect_option(state, player_idx, choice)
+    target_idx = await agent.choose_effect_option(state, player_idx, choice)
 
     # Mark the card to be pushed out (engine will handle exit effects)
     sniped_card = opponent_row[target_idx]
@@ -619,7 +621,7 @@ def effect_farewell_unit(state: GameState, card: CardInPlay, player_idx: int, ag
     return 3
 
 
-def effect_spite_module(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_spite_module(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Opponent must push out one of their edge cards (no center-score)."""
     from .state import EffectChoice, Side
 
@@ -666,7 +668,7 @@ def effect_donation_bot(state: GameState, card: CardInPlay, player_idx: int, age
     return 0
 
 
-def effect_rewinder(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_rewinder(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Take one card from market into your hand. This card goes to market."""
     from .state import EffectChoice
 
@@ -676,7 +678,7 @@ def effect_rewinder(state: GameState, card: CardInPlay, player_idx: int, agent: 
             options=list(range(len(state.market))),
             description="Choose which market card to take"
         )
-        market_idx = agent.choose_effect_option(state, player_idx, choice)
+        market_idx = await agent.choose_effect_option(state, player_idx, choice)
 
         taken_card = state.market.pop(market_idx)
         state.players[player_idx].hand.append(taken_card)
@@ -697,7 +699,7 @@ def effect_phoenix(state: GameState, card: CardInPlay, player_idx: int, agent: A
     return 2
 
 
-def effect_sabotage(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_sabotage(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Opponent must trash an edge card from their row."""
     from .state import EffectChoice, Side
 
@@ -735,7 +737,7 @@ def effect_roadblock(state: GameState, card: CardInPlay, player_idx: int, agent:
     return 0
 
 
-def effect_recruiter(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+async def effect_recruiter(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
     """Search deck for any card, add to hand, shuffle deck."""
     from .state import EffectChoice
     import random
@@ -747,7 +749,7 @@ def effect_recruiter(state: GameState, card: CardInPlay, player_idx: int, agent:
             options=list(range(len(state.deck))),
             description="Choose which card to take from deck"
         )
-        deck_idx = agent.choose_effect_option(state, player_idx, choice)
+        deck_idx = await agent.choose_effect_option(state, player_idx, choice)
 
         # Take the chosen card
         chosen_card = state.deck.pop(deck_idx)
@@ -757,7 +759,7 @@ def effect_recruiter(state: GameState, card: CardInPlay, player_idx: int, agent:
         random.shuffle(state.deck)
 
         # Enforce hand limit if needed
-        enforce_hand_limit(state, player_idx, agent)
+        await enforce_hand_limit_async(state, player_idx, agent)
 
     return 0
 
