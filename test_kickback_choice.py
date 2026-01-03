@@ -1,5 +1,6 @@
 """Test what lookahead agents choose when Kickback could trigger."""
 
+import asyncio
 from game.state import GameState, PlayerState, CardInPlay, PlayAction, Side
 from game.cards import CARD_REGISTRY
 from agents.lookahead_agent import LookaheadAgent
@@ -44,7 +45,7 @@ def test_kickback_setup_choice():
     # Test greedy agent
     print("GREEDY AGENT:")
     greedy = GreedyAgent(seed=42)
-    action_greedy = greedy.choose_action(state, 0)
+    action_greedy = asyncio.run(greedy.choose_action(state, 0))
     side_str = "LEFT" if action_greedy.side == Side.LEFT else "RIGHT"
     print(f"  Choice: {side_str}")
     if action_greedy.side == Side.RIGHT:
@@ -56,7 +57,7 @@ def test_kickback_setup_choice():
     # Test lookahead:2
     print("LOOKAHEAD:2 AGENT:")
     lookahead2 = LookaheadAgent(seed=42, depth=2)
-    action_look2 = lookahead2.choose_action(state, 0)
+    action_look2 = asyncio.run(lookahead2.choose_action(state, 0))
     side_str = "LEFT" if action_look2.side == Side.LEFT else "RIGHT"
     print(f"  Choice: {side_str}")
     if action_look2.side == Side.RIGHT:
@@ -68,7 +69,7 @@ def test_kickback_setup_choice():
     # Test lookahead:3
     print("LOOKAHEAD:3 AGENT:")
     lookahead3 = LookaheadAgent(seed=42, depth=3)
-    action_look3 = lookahead3.choose_action(state, 0)
+    action_look3 = asyncio.run(lookahead3.choose_action(state, 0))
     side_str = "LEFT" if action_look3.side == Side.LEFT else "RIGHT"
     print(f"  Choice: {side_str}")
     if action_look3.side == Side.RIGHT:
@@ -116,7 +117,7 @@ def test_kickback_vs_better_card():
 
     print("LOOKAHEAD:3 CHOICE:")
     agent = LookaheadAgent(seed=42, depth=3)
-    action = agent.choose_action(state, 0)
+    action = asyncio.run(agent.choose_action(state, 0))
 
     chosen_card = state.players[0].hand[action.hand_index].name
     print(f"  Plays: {chosen_card}")

@@ -53,6 +53,39 @@ def get_unique_icons_in_row(state: GameState, player_idx: int) -> set:
 def enforce_hand_limit(state: GameState, player_idx: int, agent: Agent) -> list:
     """
     Enforce the hand limit of 2 cards, forcing immediate discards.
+    (Synchronous version - for non-async contexts like lookahead simulation)
+
+    Returns list of discarded card names for logging.
+    """
+    from .state import EffectChoice
+    import asyncio
+
+    discarded = []
+    hand = state.players[player_idx].hand
+
+    while len(hand) > 2:
+        choice = EffectChoice(
+            choice_type="discard_hand",
+            options=list(range(len(hand))),
+            description="Choose which card to discard (hand limit is 2)",
+        )
+        # Handle both sync and async agents
+        result = agent.choose_effect_option(state, player_idx, choice)
+        if asyncio.iscoroutine(result):
+            # If we get a coroutine, we need to run it - this shouldn't happen in sync context
+            discard_idx = asyncio.get_event_loop().run_until_complete(result)
+        else:
+            discard_idx = result
+        discarded_card = hand.pop(discard_idx)
+        discarded.append(discarded_card.name)
+
+    return discarded
+
+
+async def enforce_hand_limit_async(state: GameState, player_idx: int, agent: Agent) -> list:
+    """
+    Enforce the hand limit of 2 cards, forcing immediate discards.
+    (Async version - for use in async game engine)
 
     Returns list of discarded card names for logging.
     """
@@ -67,7 +100,7 @@ def enforce_hand_limit(state: GameState, player_idx: int, agent: Agent) -> list:
             options=list(range(len(hand))),
             description="Choose which card to discard (hand limit is 2)",
         )
-        discard_idx = agent.choose_effect_option(state, player_idx, choice)
+        discard_idx = await agent.choose_effect_option(state, player_idx, choice)
         discarded_card = hand.pop(discard_idx)
         discarded.append(discarded_card.name)
 

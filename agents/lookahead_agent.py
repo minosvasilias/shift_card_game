@@ -38,7 +38,7 @@ class LookaheadAgent(Agent):
         self.depth = max(1, depth)  # Minimum depth of 1
         self.greedy = GreedyAgent(seed)  # For opponent modeling and fallback
 
-    def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
+    async def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
         """Evaluate all possible plays using lookahead and pick the best one."""
         player = state.players[player_idx]
         hand = player.hand
@@ -198,8 +198,8 @@ class LookaheadAgent(Agent):
             return max_eval if max_eval != float('-inf') else self._evaluate_state(state, player_idx)
 
         else:  # Opponent's turn
-            # Use greedy agent to pick opponent's move
-            action = self.greedy.choose_action(state, current_idx)
+            # Use greedy agent to pick opponent's move (synchronous simulation)
+            action = self._get_greedy_action_sync(state, current_idx)
 
             # Simulate opponent's action
             try:
@@ -207,6 +207,33 @@ class LookaheadAgent(Agent):
                 return self._minimax_simple(new_state, player_idx, depth - 1)
             except (IndexError, AttributeError, KeyError):
                 return self._evaluate_state(state, player_idx)
+
+    def _get_greedy_action_sync(self, state: GameState, player_idx: int) -> PlayAction:
+        """Get greedy action synchronously for simulation."""
+        player = state.players[player_idx]
+        hand = player.hand
+
+        if not hand:
+            return PlayAction(hand_index=0, side=Side.LEFT)
+
+        best_action = None
+        best_score = float('-inf')
+
+        for hand_idx, card in enumerate(hand):
+            for side in [Side.LEFT, Side.RIGHT]:
+                face_down_options = [False]
+                if card.card_type == CardType.TRAP:
+                    face_down_options = [True, False]
+
+                for face_down in face_down_options:
+                    action = PlayAction(hand_idx, side, face_down)
+                    score = self.greedy._evaluate_action(state, player_idx, action)
+
+                    if score > best_score:
+                        best_score = score
+                        best_action = action
+
+        return best_action or PlayAction(hand_index=0, side=Side.LEFT)
 
     def _simulate_action(
         self,
@@ -265,7 +292,6 @@ class LookaheadAgent(Agent):
                 if center.card.name == "Kickback":
                     # Kickback pushes one card out after scoring
                     # Simulate the greedy choice of which direction to push
-                    from game.state import EffectChoice
 
                     # Determine valid push directions
                     options = []
@@ -279,7 +305,8 @@ class LookaheadAgent(Agent):
                             options=options,
                             description="Choose which direction to push Kickback"
                         )
-                        direction = self.greedy.choose_effect_option(new_state, player_idx, choice)
+                        # Sync call to greedy's logic
+                        direction = self._get_greedy_effect_choice_sync(new_state, player_idx, choice)
 
                         # Determine which card gets pushed out
                         if direction == Side.LEFT:
@@ -298,7 +325,7 @@ class LookaheadAgent(Agent):
                         player.row.remove(kickback_pushed)
 
         # Use greedy's draw logic to choose deck vs market
-        draw_choice = self.greedy.choose_draw(new_state, player_idx)
+        draw_choice = self._get_greedy_draw_sync(new_state, player_idx)
 
         if draw_choice == DrawChoice.MARKET and new_state.market:
             # Pick best card from market using greedy's logic
@@ -320,6 +347,51 @@ class LookaheadAgent(Agent):
             new_state.turn_counter += 1
 
         return new_state
+
+    def _get_greedy_draw_sync(self, state: GameState, player_idx: int) -> DrawChoice:
+        """Get greedy draw choice synchronously for simulation."""
+        has_embargo = state.has_embargo(player_idx)
+        can_draw_market = bool(state.market) and not has_embargo
+        can_draw_deck = bool(state.deck)
+
+        if not can_draw_market:
+            return DrawChoice.DECK
+        if not can_draw_deck:
+            return DrawChoice.MARKET
+
+        best_market_value = max(
+            self.greedy._card_value(card, state, player_idx)
+            for card in state.market
+        ) if state.market else 0
+
+        deck_value = 1.5
+
+        if best_market_value > deck_value:
+            return DrawChoice.MARKET
+        else:
+            return DrawChoice.DECK
+
+    def _get_greedy_effect_choice_sync(
+        self, state: GameState, player_idx: int, choice: EffectChoice
+    ) -> Any:
+        """Get greedy effect choice synchronously for simulation."""
+        if not choice.options:
+            return None
+
+        choice_type = choice.choice_type
+
+        if choice_type == "kickback_direction":
+            row = state.players[player_idx].row
+            left_value = self.greedy._card_value(row[0].card, state, player_idx) if row else 0
+            right_value = self.greedy._card_value(row[-1].card, state, player_idx) if row else 0
+
+            if Side.RIGHT in choice.options and Side.LEFT in choice.options:
+                if right_value < left_value:
+                    return Side.RIGHT
+                elif left_value < right_value:
+                    return Side.LEFT
+
+        return self.rng.choice(choice.options)
 
     def _evaluate_state(self, state: GameState, player_idx: int) -> float:
         """
@@ -346,12 +418,12 @@ class LookaheadAgent(Agent):
 
         return eval_score
 
-    def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
+    async def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
         """Delegate to greedy agent for draw choices."""
-        return self.greedy.choose_draw(state, player_idx)
+        return await self.greedy.choose_draw(state, player_idx)
 
-    def choose_effect_option(
+    async def choose_effect_option(
         self, state: GameState, player_idx: int, choice: EffectChoice
     ) -> Any:
         """Delegate to greedy agent for effect choices."""
-        return self.greedy.choose_effect_option(state, player_idx, choice)
+        return await self.greedy.choose_effect_option(state, player_idx, choice)

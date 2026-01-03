@@ -3,11 +3,14 @@
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY
 from game.state import PlayAction, Side, DrawChoice, CardInPlay
-from agents.base import Agent
 
 
-class TestAgent(Agent):
-    """Simple agent for controlled testing."""
+class SyncTestAgent:
+    """
+    Simple synchronous test agent for direct effect testing.
+    Effects call agent.choose_effect_option() synchronously, so we need
+    a sync version for direct effect testing outside the async engine.
+    """
 
     def __init__(self, effect_choices=None):
         self.effect_choices = effect_choices or {}
@@ -44,7 +47,7 @@ def test_extraction():
     extraction_card = CardInPlay(card=CARD_REGISTRY["Extraction"], face_up=True)
 
     # Agent chooses to extract the first card (index 0)
-    agent = TestAgent(effect_choices={"extraction_target": 0})
+    agent = SyncTestAgent(effect_choices={"extraction_target": 0})
 
     print(f"Before: Opponent row has {len(state_mock.players[1].row)} cards")
     print(f"Before: Player hand has {len(state_mock.players[0].hand)} cards")
@@ -85,7 +88,7 @@ def test_purge():
     purge_card = CardInPlay(card=CARD_REGISTRY["Purge"], face_up=True)
 
     # Agent chooses to purge the middle card (index 1)
-    agent = TestAgent(effect_choices={"purge_target": 1})
+    agent = SyncTestAgent(effect_choices={"purge_target": 1})
 
     print(f"Before: Opponent row has {len(state_mock.players[1].row)} cards")
 
@@ -124,7 +127,7 @@ def test_sniper():
     sniper_card = CardInPlay(card=CARD_REGISTRY["Sniper"], face_up=True)
 
     # Agent chooses to snipe the center card (index 1)
-    agent = TestAgent(effect_choices={"sniper_target": 1})
+    agent = SyncTestAgent(effect_choices={"sniper_target": 1})
 
     print(f"Before: Opponent row has {len(state_mock.players[1].row)} cards")
 

@@ -21,7 +21,7 @@ class RandomAgent(Agent):
         """
         self.rng = random.Random(seed)
 
-    def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
+    async def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
         """Choose a random card and side to play."""
         player = state.players[player_idx]
         hand = player.hand
@@ -48,7 +48,7 @@ class RandomAgent(Agent):
             face_down=face_down,
         )
 
-    def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
+    async def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
         """Choose randomly between deck and market."""
         # Check what's available
         has_deck = bool(state.deck)
@@ -61,7 +61,7 @@ class RandomAgent(Agent):
         else:
             return DrawChoice.MARKET
 
-    def choose_effect_option(
+    async def choose_effect_option(
         self, state: GameState, player_idx: int, choice: EffectChoice
     ) -> Any:
         """Choose randomly from the available options."""

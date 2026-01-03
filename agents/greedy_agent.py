@@ -39,7 +39,7 @@ class GreedyAgent(Agent):
         """
         self.rng = random.Random(seed)
 
-    def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
+    async def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
         """Evaluate all possible plays and pick the best one."""
         player = state.players[player_idx]
         hand = player.hand
@@ -246,7 +246,7 @@ class GreedyAgent(Agent):
 
         return 0
 
-    def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
+    async def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
         """Choose where to draw from based on card value."""
         has_embargo = state.has_embargo(player_idx)
         can_draw_market = bool(state.market) and not has_embargo
@@ -299,7 +299,7 @@ class GreedyAgent(Agent):
 
         return 1
 
-    def choose_effect_option(
+    async def choose_effect_option(
         self, state: GameState, player_idx: int, choice: EffectChoice
     ) -> Any:
         """Make choices for card effects."""

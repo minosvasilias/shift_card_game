@@ -16,6 +16,7 @@ from .state import (
     EventType,
     CardType,
     ActiveEffect,
+    EffectChoice,
 )
 from .cards import get_all_cards
 
@@ -81,7 +82,7 @@ class GameEngine:
         """Get the agent for the opponent."""
         return self.agents[1 - self.state.current_player]
 
-    def _check_traps(self, event: Event) -> None:
+    async def _check_traps(self, event: Event) -> None:
         """Check and trigger any traps for an event."""
         # Check opponent's face-down cards for trap triggers
         opponent_idx = 1 - event.player_idx
@@ -95,7 +96,9 @@ class GameEngine:
 
                     # Execute trap effect
                     agent = self.agents[opponent_idx]
-                    points = card.card.effect(self.state, card, opponent_idx, agent, event)
+                    points = await self._execute_effect(
+                        card.card.effect, self.state, card, opponent_idx, agent, event
+                    )
                     self.state.players[opponent_idx].score += points
                     # Record for analytics
                     self.state.record_card_score(card.name, points)
@@ -116,8 +119,8 @@ class GameEngine:
                                 stolen_card = self.state.players[attacker_idx].row.pop(i)
                                 self.state.players[opponent_idx].hand.append(stolen_card.card)
                                 # Enforce hand limit
-                                from .effects import enforce_hand_limit
-                                enforce_hand_limit(self.state, opponent_idx, agent)
+                                from .effects import enforce_hand_limit_async
+                                await enforce_hand_limit_async(self.state, opponent_idx, agent)
                                 break
 
                     if card.metadata.get("nullify_card"):
@@ -131,7 +134,17 @@ class GameEngine:
                                 self.state.market.append(nullified_card.card)
                                 break
 
-    def _play_card(self, action: PlayAction) -> CardInPlay | None:
+    async def _execute_effect(self, effect_fn, *args):
+        """Execute a card effect, handling both sync and async effects."""
+        import asyncio
+        import inspect
+
+        result = effect_fn(*args)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    async def _play_card(self, action: PlayAction) -> CardInPlay | None:
         """
         Play a card from hand to the row.
 
@@ -180,7 +193,7 @@ class GameEngine:
             data={"side": action.side},
         )
         self.state.turn_events.append(event)
-        self._check_traps(event)
+        await self._check_traps(event)
 
         # Check if Snare was triggered
         opponent_idx = 1 - player_idx
@@ -208,11 +221,11 @@ class GameEngine:
                 pushed_card.metadata["exit_side"] = Side.LEFT
 
         # Check for center scoring
-        self._check_center_trigger(player_idx)
+        await self._check_center_trigger(player_idx)
 
         return pushed_card
 
-    def _check_center_trigger(self, player_idx: int) -> None:
+    async def _check_center_trigger(self, player_idx: int) -> None:
         """Check if center card should trigger its effect."""
         player = self.state.players[player_idx]
 
@@ -227,7 +240,9 @@ class GameEngine:
 
         # Execute center effect
         agent = self.agents[player_idx]
-        points = center_card.card.effect(self.state, center_card, player_idx, agent)
+        points = await self._execute_effect(
+            center_card.card.effect, self.state, center_card, player_idx, agent
+        )
 
         # Store for Copycat
         center_card.metadata["last_center_score"] = points
@@ -247,7 +262,7 @@ class GameEngine:
                 points=points,
             )
             self.state.turn_events.append(event)
-            self._check_traps(event)
+            await self._check_traps(event)
 
         # Handle Kickback's push effect
         if "kickback_pushed_card" in center_card.metadata:
@@ -261,7 +276,7 @@ class GameEngine:
                 else:
                     # Center card moved to right, so left edge was pushed
                     pushed.metadata["exit_side"] = Side.LEFT
-                self._handle_pushed_card(pushed, player_idx)
+                await self._handle_pushed_card(pushed, player_idx)
 
         # Handle Compressor's double push effect
         if "compressor_pushed_cards" in center_card.metadata:
@@ -271,7 +286,7 @@ class GameEngine:
                     player.row.remove(pushed)
                     # First card is left edge, second is right edge
                     pushed.metadata["exit_side"] = Side.LEFT if i == 0 else Side.RIGHT
-                    self._handle_pushed_card(pushed, player_idx)
+                    await self._handle_pushed_card(pushed, player_idx)
 
         # Handle Sniper's targeted push effect
         if "sniper_target" in center_card.metadata:
@@ -290,15 +305,13 @@ class GameEngine:
                 else:
                     # Middle card - default to left
                     sniped_card.metadata["exit_side"] = Side.LEFT
-                self._handle_pushed_card(sniped_card, opponent_idx)
+                await self._handle_pushed_card(sniped_card, opponent_idx)
 
         # Check for pending hand limit enforcement (e.g., from Hot Potato)
-        self._enforce_pending_hand_limits()
+        await self._enforce_pending_hand_limits()
 
-    def _enforce_pending_hand_limits(self) -> None:
+    async def _enforce_pending_hand_limits(self) -> None:
         """Enforce hand limits for any players marked as needing it."""
-        from .state import EffectChoice
-
         for check_player_idx, protected_card_name in list(self.state.pending_hand_limit_checks.items()):
             player = self.state.players[check_player_idx]
             agent = self.agents[check_player_idx]
@@ -319,17 +332,19 @@ class GameEngine:
                     options=options,
                     description=f"Choose which card to discard (cannot discard {protected_card_name})",
                 )
-                discard_idx = agent.choose_effect_option(self.state, check_player_idx, choice)
+                discard_idx = await agent.choose_effect_option(self.state, check_player_idx, choice)
                 player.hand.pop(discard_idx)
 
             del self.state.pending_hand_limit_checks[check_player_idx]
 
-    def _handle_pushed_card(self, pushed_card: CardInPlay, player_idx: int) -> None:
+    async def _handle_pushed_card(self, pushed_card: CardInPlay, player_idx: int) -> None:
         """Handle a card that was pushed out of the row."""
         # Trigger exit effect if applicable
         if pushed_card.face_up and pushed_card.card.card_type == CardType.EXIT:
             agent = self.agents[player_idx]
-            points = pushed_card.card.effect(self.state, pushed_card, player_idx, agent)
+            points = await self._execute_effect(
+                pushed_card.card.effect, self.state, pushed_card, player_idx, agent
+            )
             self.state.players[player_idx].score += points
             # Record for analytics
             self.state.record_card_score(pushed_card.name, points)
@@ -342,13 +357,12 @@ class GameEngine:
                 opponent_agent = self.agents[opponent_idx]
 
                 if opponent_row:
-                    from .state import EffectChoice
                     choice = EffectChoice(
                         choice_type="sabotage_edge",
                         options=[Side.LEFT, Side.RIGHT] if len(opponent_row) > 1 else [Side.LEFT],
                         description="Choose which edge card to trash (Sabotage)"
                     )
-                    edge_choice = opponent_agent.choose_effect_option(self.state, opponent_idx, choice)
+                    edge_choice = await opponent_agent.choose_effect_option(self.state, opponent_idx, choice)
 
                     # Remove and trash the chosen edge card
                     if edge_choice == Side.LEFT:
@@ -367,16 +381,15 @@ class GameEngine:
         if len(self.state.market) > 3:
             # Current player chooses which card to trash
             agent = self.agents[player_idx]
-            from .state import EffectChoice
             choice = EffectChoice(
                 choice_type="trash_market_card",
                 options=list(range(len(self.state.market))),
                 description="Choose which market card to trash",
             )
-            trash_idx = agent.choose_effect_option(self.state, player_idx, choice)
+            trash_idx = await agent.choose_effect_option(self.state, player_idx, choice)
             self.state.market.pop(trash_idx)
 
-    def _handle_draw(self, player_idx: int) -> None:
+    async def _handle_draw(self, player_idx: int) -> None:
         """Handle the draw phase."""
         player = self.state.players[player_idx]
         agent = self.agents[player_idx]
@@ -392,7 +405,7 @@ class GameEngine:
             return
 
         # Get agent's choice
-        draw_choice = agent.choose_draw(self.state, player_idx)
+        draw_choice = await agent.choose_draw(self.state, player_idx)
 
         # Validate choice
         if draw_choice == DrawChoice.DECK and not can_draw_deck:
@@ -407,13 +420,12 @@ class GameEngine:
         else:
             if self.state.market:
                 # Agent chooses which market card
-                from .state import EffectChoice
                 choice = EffectChoice(
                     choice_type="market_draw",
                     options=list(range(len(self.state.market))),
                     description="Choose which market card to take",
                 )
-                market_idx = agent.choose_effect_option(self.state, player_idx, choice)
+                market_idx = await agent.choose_effect_option(self.state, player_idx, choice)
 
                 # Check for False Flag trap
                 opponent_idx = 1 - player_idx
@@ -438,17 +450,16 @@ class GameEngine:
                         card_name=drawn.name,
                     )
                     self.state.turn_events.append(event)
-                    self._check_traps(event)
+                    await self._check_traps(event)
 
         # Handle hand limit
         while len(player.hand) > 2:
-            from .state import EffectChoice
             choice = EffectChoice(
                 choice_type="discard_hand",
                 options=list(range(len(player.hand))),
                 description="Choose which card to discard (hand limit is 2)",
             )
-            discard_idx = agent.choose_effect_option(self.state, player_idx, choice)
+            discard_idx = await agent.choose_effect_option(self.state, player_idx, choice)
             player.hand.pop(discard_idx)
 
     def _cleanup_expired_effects(self) -> None:
@@ -458,7 +469,7 @@ class GameEngine:
             if e.expires_turn is None or e.expires_turn > self.state.turn_counter
         ]
 
-    def _handle_pending_effects(self, player_idx: int) -> None:
+    async def _handle_pending_effects(self, player_idx: int) -> None:
         """Handle any pending effects from card plays."""
         player = self.state.players[player_idx]
         opponent_idx = 1 - player_idx
@@ -467,24 +478,22 @@ class GameEngine:
         for card in list(player.row):
             # Tug-of-War
             if card.metadata.get("pending_tug_of_war") and len(opponent.row) == 3:
-                from .state import EffectChoice, Side
                 agent = self.agents[opponent_idx]
                 choice = EffectChoice(
                     choice_type="tug_of_war_edge",
                     options=[Side.LEFT, Side.RIGHT],
                     description="Choose which edge card to push out",
                 )
-                edge = agent.choose_effect_option(self.state, opponent_idx, choice)
+                edge = await agent.choose_effect_option(self.state, opponent_idx, choice)
                 if edge == Side.LEFT:
                     pushed = opponent.row.pop(0)
                 else:
                     pushed = opponent.row.pop()
-                self._handle_pushed_card(pushed, opponent_idx)
+                await self._handle_pushed_card(pushed, opponent_idx)
                 card.metadata.pop("pending_tug_of_war")
 
             # Spite Module
             if card.metadata.get("pending_spite_module") and opponent.row:
-                from .state import EffectChoice, Side
                 agent = self.agents[opponent_idx]
                 options = [Side.LEFT]
                 if len(opponent.row) > 1:
@@ -494,7 +503,7 @@ class GameEngine:
                     options=options,
                     description="Choose which edge card to push out",
                 )
-                edge = agent.choose_effect_option(self.state, opponent_idx, choice)
+                edge = await agent.choose_effect_option(self.state, opponent_idx, choice)
                 if edge == Side.LEFT:
                     pushed = opponent.row.pop(0)
                 else:
@@ -503,7 +512,7 @@ class GameEngine:
                 self.state.market.append(pushed.card)
                 card.metadata.pop("pending_spite_module")
 
-    def play_turn(self) -> bool:
+    async def play_turn(self) -> bool:
         """
         Execute one turn for the current player.
 
@@ -521,18 +530,18 @@ class GameEngine:
 
         # 1. Play a card
         if player.hand:
-            action = agent.choose_action(self.state, player_idx)
-            pushed_card = self._play_card(action)
+            action = await agent.choose_action(self.state, player_idx)
+            pushed_card = await self._play_card(action)
 
             # 2. Handle pushed card
             if pushed_card:
-                self._handle_pushed_card(pushed_card, player_idx)
+                await self._handle_pushed_card(pushed_card, player_idx)
 
         # 3. Handle pending effects
-        self._handle_pending_effects(player_idx)
+        await self._handle_pending_effects(player_idx)
 
         # 4. Draw a card
-        self._handle_draw(player_idx)
+        await self._handle_draw(player_idx)
 
         # 5. Refill market
         self._refill_market()
@@ -565,9 +574,9 @@ class GameEngine:
 
         self.state.game_over = True
 
-    def run_game(self) -> GameState:
+    async def run_game(self) -> GameState:
         """Run the entire game and return the final state."""
-        while self.play_turn():
+        while await self.play_turn():
             pass
         return self.state
 

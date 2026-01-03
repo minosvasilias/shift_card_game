@@ -10,10 +10,14 @@ if TYPE_CHECKING:
 
 
 class Agent(ABC):
-    """Abstract base class for game-playing agents."""
+    """Abstract base class for game-playing agents.
+
+    All agent methods are async to support both AI agents (which complete
+    immediately) and interactive agents (which await user input).
+    """
 
     @abstractmethod
-    def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
+    async def choose_action(self, state: GameState, player_idx: int) -> PlayAction:
         """
         Choose which card to play and where.
 
@@ -27,7 +31,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
+    async def choose_draw(self, state: GameState, player_idx: int) -> DrawChoice:
         """
         Choose where to draw a card from.
 
@@ -41,7 +45,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def choose_effect_option(
+    async def choose_effect_option(
         self, state: GameState, player_idx: int, choice: EffectChoice
     ) -> Any:
         """
@@ -60,7 +64,7 @@ class Agent(ABC):
         """
         pass
 
-    def on_game_start(self, state: GameState, player_idx: int) -> None:
+    async def on_game_start(self, state: GameState, player_idx: int) -> None:
         """
         Called when a game starts. Override for any initialization.
 
@@ -70,7 +74,7 @@ class Agent(ABC):
         """
         pass
 
-    def on_game_end(self, state: GameState, player_idx: int) -> None:
+    async def on_game_end(self, state: GameState, player_idx: int) -> None:
         """
         Called when a game ends. Override for any cleanup or learning.
 

@@ -3,11 +3,14 @@
 from game.engine import GameEngine
 from game.cards import CARD_REGISTRY
 from game.state import PlayAction, Side, DrawChoice
-from agents.base import Agent
 
 
-class TestAgent(Agent):
-    """Simple agent for controlled testing."""
+class SyncTestAgent:
+    """
+    Simple synchronous test agent for direct effect testing.
+    Effects call agent.choose_effect_option() synchronously, so we need
+    a sync version for direct effect testing outside the async engine.
+    """
 
     def __init__(self, actions=None):
         self.actions = actions or []
@@ -42,8 +45,8 @@ def test_embargo_duration():
         CARD_REGISTRY["Farewell Unit"],
     ] * 10
 
-    agent0 = TestAgent()
-    agent1 = TestAgent()
+    agent0 = SyncTestAgent()
+    agent1 = SyncTestAgent()
 
     engine = GameEngine(
         agents=(agent0, agent1),
@@ -126,7 +129,7 @@ def test_kickback_consecutive():
         CARD_REGISTRY["Calibration Unit"],
     ] * 10
 
-    agent = TestAgent()
+    agent = SyncTestAgent()
 
     from game.state import GameState, PlayerState, CardInPlay
     state = GameState(
