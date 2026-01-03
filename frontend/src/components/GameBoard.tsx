@@ -275,7 +275,7 @@ export function GameBoard() {
                     : 'bg-gray-700 hover:bg-gray-600'
                 }`}
               >
-                ← LEFT
+                LEFT →
               </button>
 
               {/* Player Row */}
@@ -312,7 +312,7 @@ export function GameBoard() {
                     : 'bg-gray-700 hover:bg-gray-600'
                 }`}
               >
-                RIGHT →
+                ← RIGHT
               </button>
             </div>
           </div>

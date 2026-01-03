@@ -4,7 +4,7 @@ Game session manager for tracking and running interactive games.
 
 import uuid
 import threading
-from typing import Dict, Literal
+from typing import Any, Dict, Literal
 from game.engine import GameEngine
 from game.state import GameState, PlayAction, DrawChoice, EffectChoice, Side
 from agents.interactive_agent import InteractiveAgent
@@ -102,7 +102,7 @@ class GameSession:
         # chooses which card via choose_effect_option with MARKET_CARD choice
         self.interactive_agent.submit_draw(choice)
 
-    def submit_effect_choice(self, choice: any) -> None:
+    def submit_effect_choice(self, choice: Any) -> None:
         """Submit an effect choice for the interactive player."""
         self.interactive_agent.submit_effect_choice(choice)
 

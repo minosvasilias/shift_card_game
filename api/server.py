@@ -2,6 +2,8 @@
 FastAPI server for interactive Shift card game.
 """
 
+import time
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from api.models import (
@@ -102,7 +104,6 @@ async def create_game(request: NewGameRequest):
         )
 
         # Wait a moment for the game to initialize
-        import time
         time.sleep(0.1)
 
         state = session.get_state()
@@ -117,7 +118,7 @@ async def create_game(request: NewGameRequest):
                 session.game_id,
                 state,
                 waiting_for,
-                effect_choice.value if effect_choice else None,
+                effect_choice.choice_type if effect_choice else None,
                 winner,
             ),
         )
@@ -142,7 +143,7 @@ async def get_game_state(game_id: str):
             game_id,
             state,
             waiting_for,
-            effect_choice.value if effect_choice else None,
+            effect_choice.choice_type if effect_choice else None,
             winner,
         )
     except Exception as e:
@@ -171,7 +172,6 @@ async def submit_action(game_id: str, request: PlayActionRequest):
         session.submit_action(action)
 
         # Wait for the action to be processed
-        import time
         time.sleep(0.2)
 
         state = session.get_state()
@@ -183,7 +183,7 @@ async def submit_action(game_id: str, request: PlayActionRequest):
             game_id,
             state,
             waiting_for,
-            effect_choice.value if effect_choice else None,
+            effect_choice.choice_type if effect_choice else None,
             winner,
         )
     except Exception as e:
@@ -209,14 +209,12 @@ async def submit_draw(game_id: str, request: DrawChoiceRequest):
 
         # If drawing from market, we need to also submit which card
         if request.source == 'MARKET' and request.market_index is not None:
-            import time
             time.sleep(0.1)
             # Wait for the effect choice prompt
             if session.get_waiting_for() == 'effect':
                 session.submit_effect_choice(request.market_index)
 
         # Wait for the draw to be processed
-        import time
         time.sleep(0.2)
 
         state = session.get_state()
@@ -228,7 +226,7 @@ async def submit_draw(game_id: str, request: DrawChoiceRequest):
             game_id,
             state,
             waiting_for,
-            effect_choice.value if effect_choice else None,
+            effect_choice.choice_type if effect_choice else None,
             winner,
         )
     except Exception as e:
@@ -252,7 +250,6 @@ async def submit_effect_choice(game_id: str, request: EffectChoiceRequest):
         session.submit_effect_choice(request.choice)
 
         # Wait for the effect to be processed
-        import time
         time.sleep(0.2)
 
         state = session.get_state()
@@ -264,7 +261,7 @@ async def submit_effect_choice(game_id: str, request: EffectChoiceRequest):
             game_id,
             state,
             waiting_for,
-            effect_choice.value if effect_choice else None,
+            effect_choice.choice_type if effect_choice else None,
             winner,
         )
     except Exception as e:

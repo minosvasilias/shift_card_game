@@ -119,8 +119,7 @@ def display_card_in_play(card_in_play: Dict[str, Any]) -> str:
     if card_in_play['face_down']:
         return "🂠 [FACE DOWN]"
     card = card_in_play['card']
-    status = " ✓" if card_in_play['scored'] else ""
-    return f"{card['icon']} {card['name']}{status}"
+    return f"{card['icon']} {card['name']}"
 
 
 def display_state(state: Dict[str, Any]) -> None:
