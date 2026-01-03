@@ -16,12 +16,12 @@ echo -e "${GREEN}🎮 Starting Shift Card Game Interactive Mode${NC}"
 # Check if uvicorn is installed
 if ! python -c "import uvicorn" 2>/dev/null; then
     echo -e "${RED}❌ uvicorn not found. Installing...${NC}"
-    pip install uvicorn fastapi requests pydantic
+    pip3 install uvicorn fastapi requests pydantic
 fi
 
 # Start the FastAPI server in the background
 echo -e "${YELLOW}🚀 Starting API server...${NC}"
-python -m uvicorn api.server:app --host 0.0.0.0 --port 8000 > /tmp/shift_game_server.log 2>&1 &
+python3 -m uvicorn api.server:app --host 0.0.0.0 --port 8000 > /tmp/shift_game_server.log 2>&1 &
 SERVER_PID=$!
 
 # Function to cleanup on exit
@@ -53,6 +53,6 @@ echo -e "${YELLOW}📝 API docs available at: http://localhost:8000/docs${NC}"
 echo ""
 
 # Run the client
-python api/client.py
+python3 api/client.py
 
 # Cleanup happens automatically via trap
