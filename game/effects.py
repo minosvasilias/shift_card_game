@@ -498,6 +498,85 @@ def effect_compressor(state: GameState, card: CardInPlay, player_idx: int, agent
     return 5
 
 
+def effect_extraction(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 1. Take a card from opponent's row and add it to your hand."""
+    from .state import EffectChoice
+
+    opponent_idx = 1 - player_idx
+    opponent_row = state.players[opponent_idx].row
+
+    if not opponent_row:
+        return 1
+
+    # Let agent choose which opponent card to extract
+    choice = EffectChoice(
+        choice_type="extraction_target",
+        options=list(range(len(opponent_row))),
+        description="Choose which opponent card to extract to your hand"
+    )
+    target_idx = agent.choose_effect_option(state, player_idx, choice)
+
+    # Remove the card from opponent's row and add to your hand
+    extracted_card = opponent_row.pop(target_idx)
+    state.players[player_idx].hand.append(extracted_card.card)
+
+    # Enforce hand limit if needed
+    enforce_hand_limit(state, player_idx, agent)
+
+    return 1
+
+
+def effect_purge(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 1. Choose a card in opponent's row and trash it permanently."""
+    from .state import EffectChoice
+
+    opponent_idx = 1 - player_idx
+    opponent_row = state.players[opponent_idx].row
+
+    if not opponent_row:
+        return 1
+
+    # Let agent choose which opponent card to purge
+    choice = EffectChoice(
+        choice_type="purge_target",
+        options=list(range(len(opponent_row))),
+        description="Choose which opponent card to purge (trash permanently)"
+    )
+    target_idx = agent.choose_effect_option(state, player_idx, choice)
+
+    # Remove the card from opponent's row (don't add to market - permanently removed)
+    opponent_row.pop(target_idx)
+
+    return 1
+
+
+def effect_sniper(state: GameState, card: CardInPlay, player_idx: int, agent: Agent) -> int:
+    """Score 2. Choose any card in opponent's row and push it out (triggers exit effect)."""
+    from .state import EffectChoice
+
+    opponent_idx = 1 - player_idx
+    opponent_row = state.players[opponent_idx].row
+
+    if not opponent_row:
+        return 2
+
+    # Let agent choose which opponent card to snipe
+    choice = EffectChoice(
+        choice_type="sniper_target",
+        options=list(range(len(opponent_row))),
+        description="Choose which opponent card to snipe (push out)"
+    )
+    target_idx = agent.choose_effect_option(state, player_idx, choice)
+
+    # Mark the card to be pushed out (engine will handle exit effects)
+    sniped_card = opponent_row[target_idx]
+    card.metadata["sniper_target"] = sniped_card
+    card.metadata["sniper_target_idx"] = target_idx
+    card.metadata["sniper_opponent_idx"] = opponent_idx
+
+    return 2
+
+
 # =============================================================================
 # EXIT-SCORING EFFECTS
 # =============================================================================

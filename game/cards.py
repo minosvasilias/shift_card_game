@@ -223,6 +223,30 @@ register_card(Card(
     effect=effects.effect_compressor,
 ))
 
+register_card(Card(
+    name="Extraction",
+    icon=Icon.GEAR,
+    card_type=CardType.CENTER,
+    effect_text="Score 1. Take a card from opponent's row and add it to your hand.",
+    effect=effects.effect_extraction,
+))
+
+register_card(Card(
+    name="Purge",
+    icon=Icon.CHIP,
+    card_type=CardType.CENTER,
+    effect_text="Score 1. Choose a card in opponent's row and trash it permanently.",
+    effect=effects.effect_purge,
+))
+
+register_card(Card(
+    name="Sniper",
+    icon=Icon.GEAR,
+    card_type=CardType.CENTER,
+    effect_text="Score 2. Choose any card in opponent's row and push it out.",
+    effect=effects.effect_sniper,
+))
+
 
 # =============================================================================
 # EXIT-SCORING CARDS (6 cards)

@@ -268,6 +268,25 @@ class GameEngine:
                     pushed.metadata["exit_side"] = Side.LEFT if i == 0 else Side.RIGHT
                     self._handle_pushed_card(pushed, player_idx)
 
+        # Handle Sniper's targeted push effect
+        if "sniper_target" in center_card.metadata:
+            sniped_card = center_card.metadata.pop("sniper_target")
+            target_idx = center_card.metadata.pop("sniper_target_idx")
+            opponent_idx = center_card.metadata.pop("sniper_opponent_idx")
+            opponent_row = self.state.players[opponent_idx].row
+
+            if sniped_card in opponent_row:
+                opponent_row.remove(sniped_card)
+                # Determine which side based on original position
+                if target_idx == 0:
+                    sniped_card.metadata["exit_side"] = Side.LEFT
+                elif target_idx == len(opponent_row):  # Was rightmost before removal
+                    sniped_card.metadata["exit_side"] = Side.RIGHT
+                else:
+                    # Middle card - default to left
+                    sniped_card.metadata["exit_side"] = Side.LEFT
+                self._handle_pushed_card(sniped_card, opponent_idx)
+
         # Check for pending hand limit enforcement (e.g., from Hot Potato)
         self._enforce_pending_hand_limits()
 
