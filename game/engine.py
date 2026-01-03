@@ -97,6 +97,8 @@ class GameEngine:
                     agent = self.agents[opponent_idx]
                     points = card.card.effect(self.state, card, opponent_idx, agent, event)
                     self.state.players[opponent_idx].score += points
+                    # Record for analytics
+                    self.state.record_card_score(card.name, points)
 
                     # Handle special trap effects
                     if card.metadata.get("cancel_score"):
@@ -233,6 +235,9 @@ class GameEngine:
         # Apply points
         player.score += points
 
+        # Record for analytics
+        self.state.record_card_score(center_card.name, points)
+
         # Emit scoring event (for traps)
         if points > 0:
             event = Event(
@@ -326,6 +331,8 @@ class GameEngine:
             agent = self.agents[player_idx]
             points = pushed_card.card.effect(self.state, pushed_card, player_idx, agent)
             self.state.players[player_idx].score += points
+            # Record for analytics
+            self.state.record_card_score(pushed_card.name, points)
 
             # Handle Sabotage effect
             if pushed_card.metadata.get("pending_sabotage"):
@@ -553,6 +560,8 @@ class GameEngine:
                 if "patience_turn" in card.metadata:
                     turns_elapsed = self.state.turn_counter - card.metadata["patience_turn"]
                     player.score += turns_elapsed
+                    # Record for analytics
+                    self.state.record_card_score(card.name, turns_elapsed)
 
         self.state.game_over = True
 

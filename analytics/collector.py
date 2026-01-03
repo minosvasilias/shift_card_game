@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from game.state import GameState
@@ -32,8 +32,9 @@ class GameRecord:
     cards_played_p1: list[str] = field(default_factory=list)  # Agent1's cards
     card_plays: list[CardPlayRecord] = field(default_factory=list)
     seed: int | None = None
-    unique_cards_entered: int = 0  # Number of unique cards that entered play (25 - deck size)
+    unique_cards_entered: int = 0  # Number of unique cards that entered play
     position_winner: int | None = None  # Position-based winner for first-player advantage
+    card_scores: dict[str, list[int]] = field(default_factory=dict)  # Points scored by each card
 
     @property
     def score_margin(self) -> int:
@@ -75,8 +76,10 @@ class GameDataCollector:
         cards_p1 = [c.name for c in final_state.players[1].row]
 
         # Calculate unique cards that entered play (all cards not in deck)
-        # Total deck is 25 cards, so unique entered = 25 - remaining in deck
-        unique_cards_entered = 25 - len(final_state.deck)
+        # This includes cards in both rows, hands, and market
+        from game.cards import CARD_REGISTRY
+        total_cards = len(CARD_REGISTRY)
+        unique_cards_entered = total_cards - len(final_state.deck)
 
         record = GameRecord(
             game_id=self._next_game_id,
@@ -117,7 +120,7 @@ class GameDataCollector:
 
         return pd.DataFrame(data)
 
-    def get_card_appearances(self) -> dict[str, dict[str, int]]:
+    def get_card_appearances(self) -> dict[str, dict[str, Any]]:
         """
         Get card appearance statistics.
 
@@ -126,9 +129,10 @@ class GameDataCollector:
             'times_in_loser_row': int,
             'times_in_p0_row': int,
             'times_in_p1_row': int,
+            'all_scores': list[int],  # All score values for this card
         }
         """
-        stats: dict[str, dict[str, int]] = {}
+        stats: dict[str, dict[str, Any]] = {}
 
         for game in self.games:
             # Process player 0's cards
@@ -140,6 +144,7 @@ class GameDataCollector:
                         "times_in_p0_row": 0,
                         "times_in_p1_row": 0,
                         "times_in_tie_row": 0,
+                        "all_scores": [],
                     }
                 stats[card_name]["times_in_p0_row"] += 1
                 if game.winner == 0:
@@ -158,6 +163,7 @@ class GameDataCollector:
                         "times_in_p0_row": 0,
                         "times_in_p1_row": 0,
                         "times_in_tie_row": 0,
+                        "all_scores": [],
                     }
                 stats[card_name]["times_in_p1_row"] += 1
                 if game.winner == 1:
@@ -166,6 +172,19 @@ class GameDataCollector:
                     stats[card_name]["times_in_loser_row"] += 1
                 else:
                     stats[card_name]["times_in_tie_row"] += 1
+
+            # Collect all scores for each card from this game
+            for card_name, scores in game.card_scores.items():
+                if card_name not in stats:
+                    stats[card_name] = {
+                        "times_in_winner_row": 0,
+                        "times_in_loser_row": 0,
+                        "times_in_p0_row": 0,
+                        "times_in_p1_row": 0,
+                        "times_in_tie_row": 0,
+                        "all_scores": [],
+                    }
+                stats[card_name]["all_scores"].extend(scores)
 
         return stats
 

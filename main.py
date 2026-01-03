@@ -97,8 +97,9 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
     else:
         agent_winner = 1  # agent1 won
 
-    # Calculate unique cards entered (25 total - remaining in deck)
-    unique_cards_entered = 25 - len(final_state.deck)
+    # Calculate unique cards entered (total cards - remaining in deck)
+    from game.cards import CARD_REGISTRY
+    unique_cards_entered = len(CARD_REGISTRY) - len(final_state.deck)
 
     # Get scores by agent (not by position)
     agent0_score = final_state.players[agent0_position].score
@@ -114,6 +115,7 @@ def run_single_game(args: tuple[int, int | None, int, str, str]) -> dict[str, An
         "seed": seed,
         "unique_cards_entered": unique_cards_entered,
         "position_winner": winner,  # Position-based winner for first-player advantage
+        "card_scores": dict(final_state.card_scores),  # Points scored by each card
     }
 
 
@@ -225,6 +227,7 @@ def simulate(
                 seed=result["seed"],
                 unique_cards_entered=result["unique_cards_entered"],
                 position_winner=result["position_winner"],  # for first-player advantage
+                card_scores=result["card_scores"],  # points scored by each card
             )
             collector.games.append(record)
             collector._next_game_id += 1
@@ -275,7 +278,8 @@ def simulate(
             from analytics.collector import GameRecord
             agent0_score = final_state.players[agent0_position].score
             agent1_score = final_state.players[1 - agent0_position].score
-            unique_cards_entered = 25 - len(final_state.deck)
+            from game.cards import CARD_REGISTRY
+            unique_cards_entered = len(CARD_REGISTRY) - len(final_state.deck)
 
             record = GameRecord(
                 game_id=collector._next_game_id,
@@ -288,6 +292,7 @@ def simulate(
                 seed=game_seed,
                 unique_cards_entered=unique_cards_entered,
                 position_winner=winner,  # for first-player advantage
+                card_scores=dict(final_state.card_scores),  # points scored by each card
             )
             collector.games.append(record)
             collector._next_game_id += 1

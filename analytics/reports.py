@@ -42,7 +42,9 @@ def print_summary_report(metrics: SimulationMetrics) -> None:
 
     print("CARD VARIETY")
     print("-" * 40)
-    print(f"Avg unique cards:    {metrics.avg_unique_cards:.1f} / 25")
+    from game.cards import CARD_REGISTRY
+    total_cards = len(CARD_REGISTRY)
+    print(f"Avg unique cards:    {metrics.avg_unique_cards:.1f} / {total_cards}")
     print()
 
 
@@ -76,8 +78,8 @@ def generate_card_report(
         return "\n".join(lines)
 
     # Header
-    lines.append(f"{'Card Name':<25} {'Appearances':>12} {'Win Rate':>10} {'Impact':>10}")
-    lines.append("-" * 70)
+    lines.append(f"{'Card Name':<25} {'Appearances':>12} {'Win Rate':>10} {'Avg Pts':>8} {'Impact':>10}")
+    lines.append("-" * 78)
 
     for card in cards:
         # Impact = deviation from 50% baseline
@@ -86,7 +88,7 @@ def generate_card_report(
 
         lines.append(
             f"{card.name:<25} {card.times_appeared:>12} "
-            f"{card.win_rate:>9.1%} {impact_str:>10}"
+            f"{card.win_rate:>9.1%} {card.avg_points:>7.1f} {impact_str:>10}"
         )
 
     lines.append("")
@@ -122,6 +124,8 @@ def export_to_csv(metrics: SimulationMetrics, filepath: str) -> None:
             'times_in_winner_row',
             'times_in_loser_row',
             'win_rate',
+            'avg_points',
+            'times_scored',
             'impact',
         ])
 
@@ -132,6 +136,8 @@ def export_to_csv(metrics: SimulationMetrics, filepath: str) -> None:
                 card.times_in_winner_row,
                 card.times_in_loser_row,
                 f"{card.win_rate:.4f}",
+                f"{card.avg_points:.2f}",
+                card.times_scored,
                 f"{card.win_rate - 0.5:.4f}",
             ])
 

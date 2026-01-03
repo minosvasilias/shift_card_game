@@ -17,6 +17,8 @@ class CardMetrics:
     times_in_winner_row: int = 0
     times_in_loser_row: int = 0
     win_rate: float = 0.0  # When this card is in final row, how often did that player win
+    avg_points: float = 0.0  # Average points scored when this card triggers
+    times_scored: int = 0  # Number of times this card scored (triggered its effect)
 
     @property
     def appearance_rate(self) -> float:
@@ -26,7 +28,7 @@ class CardMetrics:
     def __str__(self) -> str:
         return (
             f"{self.name}: appeared={self.times_appeared}, "
-            f"win_rate={self.win_rate:.1%}"
+            f"win_rate={self.win_rate:.1%}, avg_pts={self.avg_points:.1f}"
         )
 
 
@@ -118,12 +120,19 @@ def calculate_metrics(collector: GameDataCollector) -> SimulationMetrics:
         decisive_appearances = times_winner + times_loser
         win_rate = times_winner / decisive_appearances if decisive_appearances > 0 else 0.5
 
+        # Calculate average points
+        all_scores = stats.get("all_scores", [])
+        times_scored = len(all_scores)
+        avg_points = sum(all_scores) / times_scored if times_scored > 0 else 0.0
+
         card_metrics[card_name] = CardMetrics(
             name=card_name,
             times_appeared=times_appeared,
             times_in_winner_row=times_winner,
             times_in_loser_row=times_loser,
             win_rate=win_rate,
+            avg_points=avg_points,
+            times_scored=times_scored,
         )
 
     return SimulationMetrics(

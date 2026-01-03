@@ -163,6 +163,8 @@ class GameState:
     # Players who need immediate hand limit enforcement (set by effects like Hot Potato)
     # Maps player_idx -> card name that cannot be discarded (the card just received)
     pending_hand_limit_checks: dict[int, str] = field(default_factory=dict)
+    # For analytics: track points scored by each card (card_name -> list of score values)
+    card_scores: dict[str, list[int]] = field(default_factory=dict)
 
     @property
     def current(self) -> PlayerState:
@@ -196,6 +198,7 @@ class GameState:
             game_over=self.game_over,
             turn_events=list(self.turn_events),
             pending_hand_limit_checks=dict(self.pending_hand_limit_checks),
+            card_scores={k: list(v) for k, v in self.card_scores.items()},
         )
 
     def get_center_card(self, player_idx: int) -> CardInPlay | None:
@@ -220,3 +223,9 @@ class GameState:
             (e.expires_turn is None or e.expires_turn > self.turn_counter)
             for e in self.active_effects
         )
+
+    def record_card_score(self, card_name: str, points: int) -> None:
+        """Record points scored by a card (for analytics)."""
+        if card_name not in self.card_scores:
+            self.card_scores[card_name] = []
+        self.card_scores[card_name].append(points)
