@@ -16,6 +16,12 @@ export interface PlayerStateInfo {
   score: number;
 }
 
+export interface EffectChoiceInfo {
+  choice_type: string;
+  description: string;
+  options: (number | string)[];
+}
+
 export interface GameState {
   game_id: string;
   current_turn: number;
@@ -27,6 +33,8 @@ export interface GameState {
   winner: number | null;
   waiting_for: string | null;
   effect_choice_type: string | null;
+  effect_choice: EffectChoiceInfo | null;
+  game_log: ServerLogEntry[];
 }
 
 export interface GameLogEntry {
@@ -34,6 +42,13 @@ export interface GameLogEntry {
   timestamp: number;
   message: string;
   type: 'info' | 'action' | 'score' | 'effect';
+}
+
+export interface ServerLogEntry {
+  log_type: string;
+  player_idx: number;
+  message: string;
+  turn: number;
 }
 
 export type Side = 'LEFT' | 'RIGHT';

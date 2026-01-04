@@ -17,6 +17,7 @@ from .state import (
     CardType,
     ActiveEffect,
     EffectChoice,
+    LogType,
 )
 from .cards import get_all_cards
 
@@ -74,6 +75,10 @@ class GameEngine:
         while len(self.state.market) < 3 and self.state.deck:
             self.state.market.append(self.state.deck.pop())
 
+    def _player_name(self, player_idx: int) -> str:
+        """Get display name for a player."""
+        return "You" if player_idx == 0 else "Opponent"
+
     def _get_current_agent(self) -> Agent:
         """Get the agent for the current player."""
         return self.agents[self.state.current_player]
@@ -94,12 +99,34 @@ class GameEngine:
                     # Trap triggers!
                     card.face_up = True
 
+                    # Log trap trigger
+                    self.state.log(
+                        LogType.TRAP_TRIGGER,
+                        opponent_idx,
+                        f"{self._player_name(opponent_idx)}'s trap {card.name} triggered! {card.card.effect_text}",
+                        card_name=card.name,
+                        effect_text=card.card.effect_text,
+                        triggered_by=event.card_name,
+                    )
+
                     # Execute trap effect
                     agent = self.agents[opponent_idx]
                     points = await self._execute_effect(
                         card.card.effect, self.state, card, opponent_idx, agent, event
                     )
                     self.state.players[opponent_idx].score += points
+
+                    # Log trap scoring
+                    if points != 0:
+                        self.state.log(
+                            LogType.SCORE,
+                            opponent_idx,
+                            f"{self._player_name(opponent_idx)} scored {points} points from trap {card.name}",
+                            card_name=card.name,
+                            points=points,
+                            new_total=self.state.players[opponent_idx].score,
+                        )
+
                     # Record for analytics
                     self.state.record_card_score(card.name, points)
 
@@ -220,6 +247,26 @@ class GameEngine:
                 pushed_card = player.row.pop(0)
                 pushed_card.metadata["exit_side"] = Side.LEFT
 
+        # Log the card play
+        face_down_str = " (face-down)" if action.face_down else ""
+        self.state.log(
+            LogType.CARD_PLAYED,
+            player_idx,
+            f"{self._player_name(player_idx)} played {card.name}{face_down_str} to {action.side.name}",
+            card_name=card.name,
+            side=action.side.name,
+            face_down=action.face_down,
+        )
+
+        if pushed_card:
+            self.state.log(
+                LogType.CARD_PUSHED,
+                player_idx,
+                f"{pushed_card.name} was pushed out of {self._player_name(player_idx)}'s row",
+                card_name=pushed_card.name,
+                exit_side=pushed_card.metadata.get("exit_side", Side.LEFT).name,
+            )
+
         # Check for center scoring
         await self._check_center_trigger(player_idx)
 
@@ -238,6 +285,15 @@ class GameEngine:
         if not center_card.face_up or center_card.card.card_type != CardType.CENTER:
             return
 
+        # Log center trigger
+        self.state.log(
+            LogType.CENTER_TRIGGER,
+            player_idx,
+            f"{center_card.name} center effect triggered: {center_card.card.effect_text}",
+            card_name=center_card.name,
+            effect_text=center_card.card.effect_text,
+        )
+
         # Execute center effect
         agent = self.agents[player_idx]
         points = await self._execute_effect(
@@ -246,6 +302,17 @@ class GameEngine:
 
         # Apply points
         player.score += points
+
+        # Log scoring
+        if points != 0:
+            self.state.log(
+                LogType.SCORE,
+                player_idx,
+                f"{self._player_name(player_idx)} scored {points} points from {center_card.name}",
+                card_name=center_card.name,
+                points=points,
+                new_total=player.score,
+            )
 
         # Record for analytics
         self.state.record_card_score(center_card.name, points)
@@ -338,11 +405,32 @@ class GameEngine:
         """Handle a card that was pushed out of the row."""
         # Trigger exit effect if applicable
         if pushed_card.face_up and pushed_card.card.card_type == CardType.EXIT:
+            # Log exit trigger
+            self.state.log(
+                LogType.EXIT_TRIGGER,
+                player_idx,
+                f"{pushed_card.name} exit effect triggered: {pushed_card.card.effect_text}",
+                card_name=pushed_card.name,
+                effect_text=pushed_card.card.effect_text,
+            )
+
             agent = self.agents[player_idx]
             points = await self._execute_effect(
                 pushed_card.card.effect, self.state, pushed_card, player_idx, agent
             )
             self.state.players[player_idx].score += points
+
+            # Log scoring from exit effect
+            if points != 0:
+                self.state.log(
+                    LogType.SCORE,
+                    player_idx,
+                    f"{self._player_name(player_idx)} scored {points} points from {pushed_card.name} exit effect",
+                    card_name=pushed_card.name,
+                    points=points,
+                    new_total=self.state.players[player_idx].score,
+                )
+
             # Record for analytics
             self.state.record_card_score(pushed_card.name, points)
 
@@ -414,6 +502,13 @@ class GameEngine:
             if self.state.deck:
                 drawn = self.state.deck.pop()
                 player.hand.append(drawn)
+                self.state.log(
+                    LogType.DRAW,
+                    player_idx,
+                    f"{self._player_name(player_idx)} drew {drawn.name} from deck",
+                    card_name=drawn.name,
+                    source="deck",
+                )
         else:
             if self.state.market:
                 # Agent chooses which market card
@@ -439,6 +534,14 @@ class GameEngine:
                 if not redirected:
                     drawn = self.state.market.pop(market_idx)
                     player.hand.append(drawn)
+
+                    self.state.log(
+                        LogType.DRAW,
+                        player_idx,
+                        f"{self._player_name(player_idx)} drew {drawn.name} from market",
+                        card_name=drawn.name,
+                        source="market",
+                    )
 
                     # Emit event
                     event = Event(
@@ -522,6 +625,13 @@ class GameEngine:
         player = self.state.current
         agent = self._get_current_agent()
 
+        # Log turn start
+        self.state.log(
+            LogType.TURN_START,
+            player_idx,
+            f"Turn {self.state.turn_counter}: {self._player_name(player_idx)}'s turn",
+        )
+
         # Clear turn events
         self.state.turn_events = []
 
@@ -566,10 +676,38 @@ class GameEngine:
                 if "patience_turn" in card.metadata:
                     turns_elapsed = self.state.turn_counter - card.metadata["patience_turn"]
                     player.score += turns_elapsed
+
+                    self.state.log(
+                        LogType.SCORE,
+                        player_idx,
+                        f"{self._player_name(player_idx)} scored {turns_elapsed} points from Patience Circuit (end game)",
+                        card_name=card.name,
+                        points=turns_elapsed,
+                        new_total=player.score,
+                    )
+
                     # Record for analytics
                     self.state.record_card_score(card.name, turns_elapsed)
 
         self.state.game_over = True
+
+        # Log game end
+        p0_score = self.state.players[0].score
+        p1_score = self.state.players[1].score
+        winner = self.get_winner()
+        if winner is None:
+            winner_msg = "It's a tie!"
+        else:
+            winner_msg = f"{self._player_name(winner)} wins!"
+
+        self.state.log(
+            LogType.GAME_END,
+            -1,  # No specific player
+            f"Game Over! Final score: You {p0_score} - {p1_score} Opponent. {winner_msg}",
+            player0_score=p0_score,
+            player1_score=p1_score,
+            winner=winner,
+        )
 
     async def run_game(self) -> GameState:
         """Run the entire game and return the final state."""

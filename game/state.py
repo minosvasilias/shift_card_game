@@ -41,6 +41,30 @@ class EventType(Enum):
     CARD_PLAYED = auto()        # A card was played to a row
 
 
+class LogType(Enum):
+    """Types of game log entries."""
+    TURN_START = auto()      # Turn started
+    CARD_PLAYED = auto()     # Card played to row
+    CARD_PUSHED = auto()     # Card pushed out of row
+    CENTER_TRIGGER = auto()  # Center effect triggered
+    EXIT_TRIGGER = auto()    # Exit effect triggered
+    TRAP_TRIGGER = auto()    # Trap triggered
+    SCORE = auto()           # Points scored
+    DRAW = auto()            # Card drawn
+    EFFECT = auto()          # Special effect occurred
+    GAME_END = auto()        # Game ended
+
+
+@dataclass
+class GameLogEntry:
+    """A log entry describing a game event."""
+    log_type: LogType
+    player_idx: int
+    message: str
+    turn: int
+    details: dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass
 class Event:
     """A game event that may trigger traps."""
@@ -165,6 +189,26 @@ class GameState:
     pending_hand_limit_checks: dict[int, str] = field(default_factory=dict)
     # For analytics: track points scored by each card (card_name -> list of score values)
     card_scores: dict[str, list[int]] = field(default_factory=dict)
+    # Comprehensive game log for UI display
+    game_log: list[GameLogEntry] = field(default_factory=list)
+    # Index of log entries already sent to client (for incremental updates)
+    _log_cursor: int = field(default=0, repr=False)
+
+    def log(self, log_type: LogType, player_idx: int, message: str, **details: Any) -> None:
+        """Add an entry to the game log."""
+        self.game_log.append(GameLogEntry(
+            log_type=log_type,
+            player_idx=player_idx,
+            message=message,
+            turn=self.turn_counter,
+            details=details,
+        ))
+
+    def get_new_log_entries(self) -> list[GameLogEntry]:
+        """Get log entries since the last call."""
+        new_entries = self.game_log[self._log_cursor:]
+        self._log_cursor = len(self.game_log)
+        return new_entries
 
     @property
     def current(self) -> PlayerState:
@@ -183,7 +227,7 @@ class GameState:
 
     def copy(self) -> GameState:
         """Create a deep copy of this game state."""
-        return GameState(
+        copied = GameState(
             players=[p.copy() for p in self.players],
             market=list(self.market),
             deck=list(self.deck),
@@ -199,7 +243,10 @@ class GameState:
             turn_events=list(self.turn_events),
             pending_hand_limit_checks=dict(self.pending_hand_limit_checks),
             card_scores={k: list(v) for k, v in self.card_scores.items()},
+            game_log=list(self.game_log),  # Shallow copy is fine for log entries
         )
+        copied._log_cursor = self._log_cursor
+        return copied
 
     def get_center_card(self, player_idx: int) -> CardInPlay | None:
         """Get the center card for a player (only exists with 3 cards)."""

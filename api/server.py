@@ -14,6 +14,8 @@ from api.models import (
     CardInfo,
     CardInPlayInfo,
     PlayerStateInfo,
+    EffectChoiceInfo,
+    GameLogEntryInfo,
 )
 from api.session_manager import session_manager
 from game.state import PlayAction, DrawChoice, Side, EffectChoice, GameState
@@ -53,12 +55,50 @@ def serialize_player_state(player_state) -> PlayerStateInfo:
     )
 
 
+def serialize_effect_choice(effect_choice: EffectChoice | None) -> EffectChoiceInfo | None:
+    """Convert an EffectChoice to EffectChoiceInfo."""
+    if effect_choice is None:
+        return None
+
+    # Convert options to serializable format
+    options = []
+    for opt in effect_choice.options:
+        if isinstance(opt, (int, str)):
+            options.append(opt)
+        elif hasattr(opt, 'name'):  # Enum like Side.LEFT
+            options.append(opt.name)
+        elif opt is None:
+            options.append('SKIP')
+        else:
+            options.append(str(opt))
+
+    return EffectChoiceInfo(
+        choice_type=effect_choice.choice_type,
+        description=effect_choice.description,
+        options=options,
+    )
+
+
+def serialize_game_log(log_entries: list) -> list[GameLogEntryInfo]:
+    """Convert game log entries to API format."""
+    return [
+        GameLogEntryInfo(
+            log_type=entry.log_type.name,
+            player_idx=entry.player_idx,
+            message=entry.message,
+            turn=entry.turn,
+        )
+        for entry in log_entries
+    ]
+
+
 def serialize_game_state(
     game_id: str,
     state: GameState,
     waiting_for: str | None,
     effect_choice: EffectChoice | None,
     winner: int | None,
+    log_entries: list | None = None,
 ) -> GameStateResponse:
     """Convert a GameState to GameStateResponse."""
     return GameStateResponse(
@@ -72,6 +112,8 @@ def serialize_game_state(
         winner=winner if state.game_over else None,
         waiting_for=waiting_for,
         effect_choice_type=effect_choice.choice_type if effect_choice else None,
+        effect_choice=serialize_effect_choice(effect_choice),
+        game_log=serialize_game_log(log_entries) if log_entries else [],
     )
 
 
@@ -105,6 +147,7 @@ async def create_game(request: NewGameRequest):
         waiting_for = session.get_waiting_for()
         effect_choice = session.get_last_effect_choice()
         winner = session.get_winner()
+        log_entries = session.get_new_log_entries()
 
         return GameCreatedResponse(
             game_id=session.game_id,
@@ -115,6 +158,7 @@ async def create_game(request: NewGameRequest):
                 waiting_for,
                 effect_choice,
                 winner,
+                log_entries,
             ),
         )
     except Exception as e:
@@ -133,6 +177,7 @@ async def get_game_state(game_id: str):
         waiting_for = session.get_waiting_for()
         effect_choice = session.get_last_effect_choice()
         winner = session.get_winner()
+        log_entries = session.get_new_log_entries()
 
         return serialize_game_state(
             game_id,
@@ -140,6 +185,7 @@ async def get_game_state(game_id: str):
             waiting_for,
             effect_choice,
             winner,
+            log_entries,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -176,6 +222,7 @@ async def submit_action(game_id: str, request: PlayActionRequest):
         waiting_for = session.get_waiting_for()
         effect_choice = session.get_last_effect_choice()
         winner = session.get_winner()
+        log_entries = session.get_new_log_entries()
 
         return serialize_game_state(
             game_id,
@@ -183,6 +230,7 @@ async def submit_action(game_id: str, request: PlayActionRequest):
             waiting_for,
             effect_choice,
             winner,
+            log_entries,
         )
     except HTTPException:
         raise
@@ -226,6 +274,7 @@ async def submit_draw(game_id: str, request: DrawChoiceRequest):
         waiting_for = session.get_waiting_for()
         effect_choice = session.get_last_effect_choice()
         winner = session.get_winner()
+        log_entries = session.get_new_log_entries()
 
         return serialize_game_state(
             game_id,
@@ -233,6 +282,7 @@ async def submit_draw(game_id: str, request: DrawChoiceRequest):
             waiting_for,
             effect_choice,
             winner,
+            log_entries,
         )
     except HTTPException:
         raise
@@ -265,6 +315,7 @@ async def submit_effect_choice(game_id: str, request: EffectChoiceRequest):
         waiting_for = session.get_waiting_for()
         effect_choice = session.get_last_effect_choice()
         winner = session.get_winner()
+        log_entries = session.get_new_log_entries()
 
         return serialize_game_state(
             game_id,
@@ -272,6 +323,7 @@ async def submit_effect_choice(game_id: str, request: EffectChoiceRequest):
             waiting_for,
             effect_choice,
             winner,
+            log_entries,
         )
     except HTTPException:
         raise

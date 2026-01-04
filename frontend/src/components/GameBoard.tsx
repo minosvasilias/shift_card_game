@@ -1,9 +1,30 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GameState, Side, GameLogEntry } from '../types/game';
+import { GameState, Side, GameLogEntry, ServerLogEntry } from '../types/game';
 import { GameAPI } from '../services/api';
 import { Card } from './Card';
 import { GameLog } from './GameLog';
+
+// Map server log types to local log types
+const mapLogType = (serverType: string): GameLogEntry['type'] => {
+  switch (serverType) {
+    case 'SCORE':
+      return 'score';
+    case 'CARD_PLAYED':
+    case 'CARD_PUSHED':
+    case 'DRAW':
+      return 'action';
+    case 'CENTER_TRIGGER':
+    case 'EXIT_TRIGGER':
+    case 'TRAP_TRIGGER':
+    case 'EFFECT':
+      return 'effect';
+    case 'TURN_START':
+    case 'GAME_END':
+    default:
+      return 'info';
+  }
+};
 
 export function GameBoard() {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -12,8 +33,7 @@ export function GameBoard() {
   const [selectedSide, setSelectedSide] = useState<Side | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [animationQueue, setAnimationQueue] = useState<string[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing] = useState(false);
 
   const addLog = useCallback((message: string, type: GameLogEntry['type'] = 'info') => {
     const entry: GameLogEntry = {
@@ -25,16 +45,19 @@ export function GameBoard() {
     setGameLog((prev) => [...prev, entry]);
   }, []);
 
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const addServerLogs = useCallback((serverLogs: ServerLogEntry[]) => {
+    if (!serverLogs || serverLogs.length === 0) return;
 
-  const processAnimationQueue = async (messages: string[]) => {
-    setIsProcessing(true);
-    for (const message of messages) {
-      addLog(message, 'action');
-      await delay(500); // 500ms between events
-    }
-    setIsProcessing(false);
-  };
+    const newEntries: GameLogEntry[] = serverLogs.map((log, idx) => ({
+      id: `${Date.now()}-${idx}-${Math.random()}`,
+      timestamp: Date.now(),
+      message: log.message,
+      type: mapLogType(log.log_type),
+    }));
+    setGameLog((prev) => [...prev, ...newEntries]);
+  }, []);
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const startNewGame = async () => {
     setIsLoading(true);
@@ -46,7 +69,8 @@ export function GameBoard() {
       });
       setGameState(response.state);
       setGameLog([]);
-      addLog('Game started! Your turn.', 'info');
+      addLog('Game started!', 'info');
+      addServerLogs(response.state.game_log);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start game');
     } finally {
@@ -60,9 +84,6 @@ export function GameBoard() {
     setIsLoading(true);
     setError(null);
     try {
-      const card = gameState.players[0].hand[selectedHandIndex];
-      addLog(`Playing ${card.name} to ${selectedSide}`, 'action');
-
       await delay(300);
 
       const newState = await GameAPI.submitAction(
@@ -77,6 +98,7 @@ export function GameBoard() {
       setGameState(newState);
       setSelectedHandIndex(null);
       setSelectedSide(null);
+      addServerLogs(newState.game_log);
 
       if (newState.waiting_for === 'draw') {
         addLog('Choose where to draw from', 'info');
@@ -94,8 +116,6 @@ export function GameBoard() {
     setIsLoading(true);
     setError(null);
     try {
-      addLog(`Drawing from ${source}`, 'action');
-
       await delay(300);
 
       const newState = await GameAPI.submitDraw(
@@ -107,16 +127,53 @@ export function GameBoard() {
       await delay(400);
 
       setGameState(newState);
-
-      if (newState.is_game_over) {
-        const winner = newState.winner === 0 ? 'You win!' : 'AI wins!';
-        addLog(`Game over! ${winner}`, 'score');
-      }
+      addServerLogs(newState.game_log);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to draw card');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const submitEffectChoice = async (choice: number | string) => {
+    if (!gameState || isProcessing) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      await delay(300);
+
+      const newState = await GameAPI.submitEffectChoice(
+        gameState.game_id,
+        choice
+      );
+
+      await delay(400);
+
+      setGameState(newState);
+      addServerLogs(newState.game_log);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit choice');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper to get display name for effect choice options
+  const getEffectChoiceLabel = (option: number | string, choiceType: string): string => {
+    if (choiceType === 'rewinder_market_card' || choiceType === 'market_draw') {
+      const idx = typeof option === 'number' ? option : parseInt(option, 10);
+      if (gameState && idx < gameState.market.length) {
+        return gameState.market[idx].name;
+      }
+    }
+    if (option === 'LEFT' || option === 'RIGHT') {
+      return option;
+    }
+    if (option === 'SKIP') {
+      return 'Skip';
+    }
+    return String(option);
   };
 
   useEffect(() => {
@@ -135,7 +192,6 @@ export function GameBoard() {
 
   const playerState = gameState.players[0];
   const opponentState = gameState.players[1];
-  const isPlayerTurn = gameState.current_player === 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
@@ -362,6 +418,24 @@ export function GameBoard() {
               <div className="text-white">Select a card and a side to play</div>
             ) : gameState.waiting_for === 'draw' ? (
               <div className="text-white">Choose where to draw from</div>
+            ) : gameState.waiting_for === 'effect' && gameState.effect_choice ? (
+              <div className="space-y-3">
+                <div className="text-white font-semibold">
+                  {gameState.effect_choice.description}
+                </div>
+                <div className="flex gap-2 justify-center flex-wrap">
+                  {gameState.effect_choice.options.map((option, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => submitEffectChoice(option)}
+                      disabled={isLoading}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      {getEffectChoiceLabel(option, gameState.effect_choice!.choice_type)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className="text-gray-400">Waiting for opponent...</div>
             )}

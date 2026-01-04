@@ -48,7 +48,7 @@ register_card(Card(
 ))
 
 register_card(Card(
-    name="Jealous Unit",
+    name="Coveton",
     icon=Icon.HEART,
     card_type=CardType.CENTER,
     effect_text="Score 2 per opponent's card that shares your icon.",

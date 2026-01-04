@@ -77,6 +77,10 @@ class GameSession:
         """Get the current game state."""
         return self.engine.state.copy()
 
+    def get_new_log_entries(self) -> list:
+        """Get new log entries since the last call."""
+        return self.engine.state.get_new_log_entries()
+
     def get_winner(self) -> int | None:
         """Get the winner of the game."""
         return self.engine.get_winner()

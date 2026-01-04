@@ -66,6 +66,21 @@ class PlayerStateInfo(BaseModel):
     score: int
 
 
+class EffectChoiceInfo(BaseModel):
+    """Information about an effect choice that needs to be made."""
+    choice_type: str
+    description: str
+    options: list[int | str]
+
+
+class GameLogEntryInfo(BaseModel):
+    """A log entry from the game."""
+    log_type: str
+    player_idx: int
+    message: str
+    turn: int
+
+
 class GameStateResponse(BaseModel):
     """Response containing current game state."""
     game_id: str
@@ -78,6 +93,8 @@ class GameStateResponse(BaseModel):
     winner: int | None
     waiting_for: str | None  # 'action', 'draw', 'effect', or None
     effect_choice_type: str | None  # Details about what effect choice is needed
+    effect_choice: EffectChoiceInfo | None = None  # Full effect choice details
+    game_log: list[GameLogEntryInfo] = []  # New log entries since last request
 
 
 class GameCreatedResponse(BaseModel):
